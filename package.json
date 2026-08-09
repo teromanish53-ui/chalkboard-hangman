@@ -1,0 +1,13 @@
+{
+  "name": "chalkboard-hangman-server",
+  "version": "1.0.0",
+  "description": "Self-hosted real-time multiplayer Hangman with voice chat",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}

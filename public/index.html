@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chalkboard Hangman — Play Online</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Patrick+Hand&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --board: #1e2f24; --wood: #6b4226; --wood-light: #8b5e3c; --wood-dark: #4a2c19;
+    --chalk: #f2ede1; --chalk-dim: #cfc9ba; --yellow: #e8c468; --coral: #e2725b; --teal: #7fb8b0; --lilac: #b79fd1;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    background: radial-gradient(ellipse at 50% 0%, #2a2320 0%, #17130f 70%);
+    font-family:'Patrick Hand', cursive; color: var(--chalk);
+    min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  .frame{
+    width:100%; max-width:600px;
+    background: linear-gradient(160deg, var(--wood-light), var(--wood) 55%, var(--wood-dark));
+    border-radius:14px; padding:14px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.55), inset 0 0 0 2px rgba(0,0,0,0.2);
+  }
+  .board{
+    background: radial-gradient(circle at 20% 15%, rgba(255,255,255,0.03), transparent 40%),
+      radial-gradient(circle at 80% 85%, rgba(255,255,255,0.025), transparent 45%), var(--board);
+    border-radius:6px; padding:26px 22px 20px;
+    box-shadow: inset 0 0 40px rgba(0,0,0,0.5), inset 0 0 2px rgba(255,255,255,0.05);
+    min-height:440px; display:flex; flex-direction:column;
+  }
+  h1.title{ font-family:'Kalam', cursive; font-weight:700; font-size:1.7rem; text-align:center; margin:0 0 2px; text-shadow: 0 0 8px rgba(242,237,225,0.25); }
+  .subtitle{ text-align:center; color:var(--chalk-dim); font-size:1rem; margin:0 0 16px; }
+  .roomtag{ text-align:center; font-family:'Kalam',cursive; font-size:0.95rem; color:var(--yellow); margin-bottom:10px; letter-spacing:1px; }
+  .screen{ flex:1; display:flex; flex-direction:column; justify-content:center; gap:14px; }
+  .row{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+  button{
+    font-family:'Patrick Hand', cursive; font-size:1.1rem; background:transparent; border:2px solid var(--chalk);
+    color:var(--chalk); padding:10px 18px; border-radius:8px; cursor:pointer; transition: transform 0.08s ease, background 0.15s ease;
+  }
+  button:hover:not(:disabled){ background: rgba(242,237,225,0.12); transform: translateY(-1px); }
+  button:active:not(:disabled){ transform: translateY(0px) scale(0.97); }
+  button:disabled{ opacity:0.3; cursor:default; }
+  button.primary{ border-color: var(--yellow); color: var(--yellow); font-weight:bold; }
+  button.primary:hover:not(:disabled){ background: rgba(232,196,104,0.15); }
+  button.danger{ border-color: var(--coral); color: var(--coral); }
+  input[type=text]{
+    font-family:'Patrick Hand', cursive; font-size:1.15rem; background: rgba(242,237,225,0.06); border:none;
+    border-bottom:2px dashed var(--chalk-dim); color:var(--chalk); padding:8px 6px; outline:none; width:100%;
+    text-align:center; letter-spacing:1px;
+  }
+  input[type=text]::placeholder{ color:rgba(242,237,225,0.4); }
+  .stack{ display:flex; flex-direction:column; gap:12px; max-width:340px; margin:0 auto; width:100%; }
+  .hint{ text-align:center; color:var(--chalk-dim); font-size:0.92rem; margin-top:-4px; }
+  .center-text{ text-align:center; font-size:1.1rem; }
+  .big-name{ font-family:'Kalam', cursive; font-weight:700; font-size:1.5rem; }
+  .code-display{ text-align:center; font-family:'Kalam',cursive; font-weight:700; font-size:2.2rem; letter-spacing:6px; color:var(--yellow); margin:6px 0; }
+  svg.gallows{ display:block; margin:0 auto; }
+  .gallows line, .gallows circle{ stroke: var(--chalk); stroke-width:4; fill:none; stroke-linecap:round; }
+  .gallows .base{ stroke: var(--chalk-dim); }
+  .word-row{ display:flex; gap:7px; justify-content:center; flex-wrap:wrap; margin:12px 0 8px; }
+  .letter-box{ min-width:24px; border-bottom:3px solid var(--chalk-dim); text-align:center; font-family:'Kalam', cursive; font-size:1.5rem; font-weight:700; padding:0 3px; }
+  .keyboard{ display:grid; grid-template-columns: repeat(9, 1fr); gap:5px; max-width:460px; margin:8px auto 0; }
+  .keyboard button{ padding:7px 0; font-size:0.95rem; border-width:1.5px; }
+  .keyboard button.used-good{ border-color: var(--teal); color: var(--teal); opacity:0.5; }
+  .keyboard button.used-bad{ border-color: var(--coral); color: var(--coral); opacity:0.5; }
+  .status-row{ display:flex; justify-content:space-between; align-items:center; font-size:0.95rem; color:var(--chalk-dim); margin-bottom:2px; flex-wrap:wrap; gap:6px; }
+  .turn-flag{ font-family:'Kalam',cursive; font-weight:700; color: var(--yellow); }
+  .players-list{ display:flex; flex-direction:column; gap:6px; max-width:320px; margin:0 auto; width:100%; }
+  .player-chip{ display:flex; align-items:center; gap:8px; font-size:1.05rem; padding:4px 8px; border-radius:6px; background:rgba(242,237,225,0.05); }
+  .dot{ width:12px; height:12px; border-radius:50%; flex-shrink:0; }
+  .scorebar{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; font-size:0.85rem; color:var(--chalk-dim); margin-top:14px; border-top:1px dashed rgba(242,237,225,0.15); padding-top:10px; }
+  .scorebar .pts{ color:var(--yellow); font-weight:bold; }
+  .result-banner{ text-align:center; font-family:'Kalam',cursive; font-weight:700; font-size:1.4rem; margin-bottom:4px; }
+  .win{ color: var(--teal); } .lose{ color: var(--coral); }
+  .spinner-dots::after{ content:'...'; }
+  .error-text{ text-align:center; color:var(--coral); font-size:0.95rem; min-height:1.2em; }
+  .privacy-note{ text-align:center; color:var(--chalk-dim); font-size:0.78rem; margin-top:10px; opacity:0.8; }
+  .connbar{ text-align:center; font-size:0.8rem; margin-bottom:8px; }
+  .conn-ok{ color: var(--teal); } .conn-bad{ color: var(--coral); }
+</style>
+</head>
+<body>
+<div class="frame">
+  <div class="board">
+    <h1 class="title">Chalkboard Hangman</h1>
+    <div class="connbar" id="connbar"></div>
+    <div class="roomtag" id="roomtag"></div>
+    <div class="subtitle" id="subtitle">Play with friends on different phones</div>
+    <div class="screen" id="screen"></div>
+  </div>
+</div>
+
+<script>
+const PALETTE = ['#e8c468', '#7fb8b0', '#e2725b', '#b79fd1', '#8fbf6a', '#e89ac0', '#7aa5d1', '#d1a05a'];
+const MAX_WRONG = 6;
+const ICE_SERVERS = [{urls:'stun:stun.l.google.com:19302'}, {urls:'stun:global.stun.twilio.com:3478'}];
+
+function randomId(){
+  if(window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return 'id-' + Math.random().toString(36).slice(2) + Date.now();
+}
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+const myId = randomId();
+let myName = '';
+let room = null;
+let joinError = '';
+let wordError = '';
+let connected = false;
+let ws = null;
+
+let micOn = false, localStream = null, micStatus = 'off';
+const peerConns = {}, remoteAudios = {};
+
+const screenEl = document.getElementById('screen');
+const subtitleEl = document.getElementById('subtitle');
+const roomtagEl = document.getElementById('roomtag');
+const connbarEl = document.getElementById('connbar');
+
+function el(tag, opts={}, children=[]){
+  const e = document.createElement(tag);
+  if(opts.class) e.className = opts.class;
+  if(opts.text) e.textContent = opts.text;
+  if(opts.html) e.innerHTML = opts.html;
+  if(opts.attrs) for(const k in opts.attrs) e.setAttribute(k, opts.attrs[k]);
+  if(opts.style) Object.assign(e.style, opts.style);
+  if(opts.onclick) e.addEventListener('click', opts.onclick);
+  children.forEach(c => e.appendChild(c));
+  return e;
+}
+
+// ---------- WebSocket connection ----------
+function connectWS(){
+  const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+  ws = new WebSocket(proto + location.host);
+  ws.onopen = () => { connected = true; render(); };
+  ws.onclose = () => { connected = false; render(); setTimeout(connectWS, 2000); };
+  ws.onerror = () => { connected = false; };
+  ws.onmessage = (evt) => {
+    let msg;
+    try{ msg = JSON.parse(evt.data); }catch(e){ return; }
+    if(msg.type === 'room'){
+      room = msg.room;
+      joinError = '';
+      connectToAllPeers();
+      render();
+    } else if(msg.type === 'error'){
+      joinError = msg.message;
+      wordError = msg.message;
+      render();
+    } else if(msg.type === 'signal'){
+      handleSignal(msg.from, msg.data);
+    }
+  };
+}
+function send(obj){ if(ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj)); }
+
+function colorFor(index){ return PALETTE[index % PALETTE.length]; }
+function playerName(id){ if(!room) return '?'; const p = room.players.find(p=>p.id===id); return p ? p.name : '?'; }
+function playerColor(id){ if(!room) return '#fff'; const idx = room.players.findIndex(p=>p.id===id); return colorFor(idx<0?0:idx); }
+
+function render(){
+  connbarEl.textContent = connected ? '' : 'Connecting to server...';
+  connbarEl.className = 'connbar ' + (connected ? 'conn-ok' : 'conn-bad');
+  screenEl.innerHTML = '';
+  roomtagEl.textContent = room ? 'Room ' + room.code : '';
+  if(!room){
+    subtitleEl.textContent = 'Play with friends on different phones';
+    renderHome(screenEl);
+    return;
+  }
+  subtitleEl.textContent = subtitleFor(room.phase);
+  if(room.phase === 'lobby') renderLobby(screenEl);
+  else if(room.phase === 'word-entry') renderWordEntry(screenEl);
+  else if(room.phase === 'guessing') renderGuessing(screenEl);
+  else if(room.phase === 'round-result') renderRoundResult(screenEl);
+  renderMicButton(screenEl);
+}
+function subtitleFor(phase){
+  switch(phase){
+    case 'lobby': return 'Waiting in the lobby';
+    case 'word-entry': return 'Setting the secret word';
+    case 'guessing': return 'Guess the word';
+    case 'round-result': return 'Round over';
+  }
+  return '';
+}
+function renderScorebar(root){
+  if(!room) return;
+  const bar = el('div', {class:'scorebar'});
+  room.players.forEach((p,i) => {
+    bar.appendChild(el('span', {}, [
+      el('span', {text:p.name, style:{color:colorFor(i)}}),
+      document.createTextNode(': '),
+      el('span', {class:'pts', text:(room.scores[p.id]||0)})
+    ]));
+  });
+  root.appendChild(bar);
+}
+
+// ---------- HOME ----------
+function renderHome(root){
+  const stack = el('div', {class:'stack'});
+  const nameInput = el('input', {attrs:{type:'text', placeholder:'Your name', maxlength:'16'}});
+  nameInput.value = myName;
+  nameInput.addEventListener('input', e => myName = e.target.value);
+  stack.appendChild(nameInput);
+
+  stack.appendChild(el('button', {class:'primary', text:'Create a new room', onclick: () => {
+    if(!myName.trim()){ joinError = 'Enter your name first.'; render(); return; }
+    send({type:'create', id: myId, name: myName.trim()});
+  }}));
+
+  const codeRow = el('div', {class:'row'});
+  const codeInput = el('input', {attrs:{type:'text', placeholder:'Room code', maxlength:'4', style:'text-transform:uppercase'}});
+  codeRow.appendChild(codeInput);
+  stack.appendChild(codeRow);
+
+  stack.appendChild(el('button', {text:'Join a room', onclick: () => {
+    if(!myName.trim()){ joinError = 'Enter your name first.'; render(); return; }
+    const code = codeInput.value.trim().toUpperCase();
+    if(code.length !== 4){ joinError = 'Enter the 4-letter room code.'; render(); return; }
+    send({type:'join', id: myId, name: myName.trim(), code});
+  }}));
+
+  root.appendChild(stack);
+  root.appendChild(el('div', {class:'error-text', text: joinError}));
+  root.appendChild(el('div', {class:'privacy-note', text:'Everyone needs this same web link. Whoever is running the server can technically see game data — play with people you trust.'}));
+}
+
+// ---------- LOBBY ----------
+function renderLobby(root){
+  root.appendChild(el('div', {class:'code-display', text: room.code}));
+  root.appendChild(el('div', {class:'hint', text:'Share this code so friends can join from their phones.'}));
+  const list = el('div', {class:'players-list'});
+  room.players.forEach((p,i) => {
+    list.appendChild(el('div', {class:'player-chip'}, [
+      el('span', {class:'dot', style:{background: colorFor(i)}}),
+      el('span', {text: p.name + (p.id === room.hostId ? '  (host)' : '')})
+    ]));
+  });
+  root.appendChild(list);
+  if(myId === room.hostId){
+    const canStart = room.players.length >= 2;
+    root.appendChild(el('div', {class:'row'}, [
+      el('button', {class:'primary', text: canStart ? 'Start game — you give the first word' : 'Need at least 2 players', onclick: () => { if(canStart) send({type:'start', id: myId}); }})
+    ]));
+    if(!canStart) root.appendChild(el('div', {class:'hint', text:'Waiting for more players to join...'}));
+  } else {
+    root.appendChild(el('div', {class:'hint spinner-dots', text:'Waiting for the host to start the game'}));
+  }
+}
+
+// ---------- WORD ENTRY ----------
+function renderWordEntry(root){
+  const setterName = playerName(room.setterId), setterColor = playerColor(room.setterId);
+  if(myId === room.setterId){
+    root.appendChild(el('div', {class:'center-text', text:'Your turn — give the group a word or phrase to guess'}));
+    const input = el('input', {attrs:{type:'text', placeholder:'letters and spaces only', maxlength:'30'}});
+    root.appendChild(input);
+    root.appendChild(el('div', {class:'error-text', text: wordError}));
+    root.appendChild(el('div', {class:'row'}, [
+      el('button', {class:'primary', text:'Set word', onclick: () => {
+        const val = input.value.trim();
+        if(val.length < 3 || !/^[a-zA-Z ]+$/.test(val)){ wordError = 'Use only letters/spaces, at least 3 letters.'; render(); return; }
+        wordError = '';
+        send({type:'setWord', id: myId, word: val});
+      }})
+    ]));
+    input.focus();
+  } else {
+    root.appendChild(el('div', {class:'center-text', html:'<span class="big-name" style="color:'+setterColor+'">'+escapeHtml(setterName)+'</span> is choosing a word'}));
+    root.appendChild(el('div', {class:'hint spinner-dots', text:'Waiting'}));
+  }
+  renderScorebar(root);
+}
+
+// ---------- GUESSING ----------
+function renderGuessing(root){
+  root.appendChild(buildGallows(room.wrong));
+  const wordRow = el('div', {class:'word-row'});
+  room.currentWord.split('').forEach(ch => {
+    if(ch === ' ') wordRow.appendChild(el('div', {style:{width:'16px'}}));
+    else wordRow.appendChild(el('div', {class:'letter-box', text: room.guessed.includes(ch) ? ch : ''}));
+  });
+  root.appendChild(wordRow);
+
+  const currentGuesserId = room.turnOrder[room.turnPointer % room.turnOrder.length];
+  const isMyTurn = currentGuesserId === myId;
+  const statusRow = el('div', {class:'status-row'});
+  statusRow.appendChild(el('span', {html:'Turn: <span class="turn-flag" style="color:'+playerColor(currentGuesserId)+'">'+escapeHtml(playerName(currentGuesserId))+'</span>'}));
+  statusRow.appendChild(el('span', {text: 'Lives left: ' + (MAX_WRONG - room.wrong)}));
+  root.appendChild(statusRow);
+  if(!isMyTurn) root.appendChild(el('div', {class:'hint', text:'Wait for your turn — the board updates live.'}));
+
+  const keyboard = el('div', {class:'keyboard'});
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').forEach(letter => {
+    const used = room.guessed.includes(letter);
+    const isGood = used && room.currentWord.includes(letter);
+    const btn = el('button', {text: letter, class: used ? (isGood?'used-good':'used-bad') : ''});
+    if(used || !isMyTurn) btn.disabled = true;
+    btn.addEventListener('click', () => send({type:'guess', id: myId, letter}));
+    keyboard.appendChild(btn);
+  });
+  root.appendChild(keyboard);
+  renderScorebar(root);
+}
+
+// ---------- ROUND RESULT ----------
+function renderRoundResult(root){
+  const r = room.roundResult;
+  root.appendChild(el('div', {class:'result-banner ' + (r.won?'win':'lose'), text: r.won ? 'The word was guessed!' : 'Out of chalk!'}));
+  root.appendChild(el('div', {class:'center-text', html:'The word was: <span class="big-name">'+escapeHtml(room.currentWord)+'</span>'}));
+  root.appendChild(el('div', {class:'hint', text: r.note}));
+  if(myId === room.setterId){
+    root.appendChild(el('div', {class:'row', style:{marginTop:'10px'}}, [
+      el('button', {class:'primary', text:'Give the next word', onclick: () => send({type:'nextRound', id: myId})})
+    ]));
+  } else {
+    root.appendChild(el('div', {class:'hint spinner-dots', text: 'Waiting for ' + playerName(room.setterId) + ' to start the next round'}));
+  }
+  renderScorebar(root);
+}
+
+function buildGallows(wrong){
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', '0 0 200 180'); svg.setAttribute('width', '150'); svg.setAttribute('height', '135');
+  svg.classList.add('gallows');
+  const parts = [
+    ['line', {x1:20,y1:170,x2:120,y2:170,class:'base'}],
+    ['line', {x1:50,y1:170,x2:50,y2:20}],
+    ['line', {x1:50,y1:20,x2:130,y2:20}],
+    ['line', {x1:130,y1:20,x2:130,y2:40}],
+    ['circle', {cx:130,cy:55,r:15}],
+    ['line', {x1:130,y1:70,x2:130,y2:115}],
+    ['line', {x1:130,y1:80,x2:112,y2:100}],
+    ['line', {x1:130,y1:80,x2:148,y2:100}],
+    ['line', {x1:130,y1:115,x2:114,y2:145}],
+    ['line', {x1:130,y1:115,x2:146,y2:145}],
+  ];
+  const visibleCount = 3 + Math.min(wrong, 7);
+  parts.slice(0, visibleCount).forEach(([tag, attrs]) => {
+    const shape = document.createElementNS(svgNS, tag);
+    for(const k in attrs){ if(k==='class') shape.setAttribute('class', attrs[k]); else shape.setAttribute(k, attrs[k]); }
+    svg.appendChild(shape);
+  });
+  const wrapper = document.createElement('div');
+  wrapper.appendChild(svg);
+  return wrapper;
+}
+
+// ---------- VOICE (WebRTC, signaling relayed through the server) ----------
+function makePeerConnection(peerId){
+  const pc = new RTCPeerConnection({iceServers: ICE_SERVERS});
+  if(localStream) localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+  pc.ontrack = (e) => {
+    let audio = remoteAudios[peerId];
+    if(!audio){
+      audio = document.createElement('audio');
+      audio.autoplay = true; audio.playsInline = true; audio.style.display = 'none';
+      document.body.appendChild(audio);
+      remoteAudios[peerId] = audio;
+    }
+    audio.srcObject = e.streams[0];
+  };
+  pc.onicecandidate = (e) => { if(e.candidate) send({type:'signal', id: myId, to: peerId, data: {kind:'ice', candidate: e.candidate}}); };
+  pc.onconnectionstatechange = () => { if(pc.connectionState === 'connected'){ micStatus = 'on'; render(); } };
+  return pc;
+}
+async function ensurePeerConnection(peerId, initiate){
+  if(peerConns[peerId]) return;
+  const pc = makePeerConnection(peerId);
+  peerConns[peerId] = pc;
+  if(initiate){
+    const offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    send({type:'signal', id: myId, to: peerId, data: {kind:'offer', sdp: offer}});
+  }
+}
+async function connectToAllPeers(){
+  if(!micOn || !room) return;
+  for(const p of room.players){
+    if(p.id === myId) continue;
+    await ensurePeerConnection(p.id, myId < p.id);
+  }
+}
+async function handleSignal(fromId, data){
+  if(!micOn) return; // ignore voice signals if mic not enabled
+  await ensurePeerConnection(fromId, false);
+  const pc = peerConns[fromId];
+  if(data.kind === 'offer'){
+    await pc.setRemoteDescription(data.sdp);
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    send({type:'signal', id: myId, to: fromId, data: {kind:'answer', sdp: answer}});
+  } else if(data.kind === 'answer'){
+    if(!pc.currentRemoteDescription) await pc.setRemoteDescription(data.sdp);
+  } else if(data.kind === 'ice'){
+    try{ await pc.addIceCandidate(data.candidate); }catch(e){}
+  }
+}
+async function toggleMic(){
+  if(!micOn){
+    micStatus = 'connecting'; render();
+    try{ localStream = await navigator.mediaDevices.getUserMedia({audio:true}); }
+    catch(e){ micStatus = 'error'; render(); return; }
+    micOn = true;
+    await connectToAllPeers();
+    render();
+  } else {
+    micOn = false; micStatus = 'off';
+    if(localStream){ localStream.getTracks().forEach(t=>t.stop()); localStream = null; }
+    for(const id in peerConns){ peerConns[id].close(); delete peerConns[id]; }
+    for(const id in remoteAudios){ remoteAudios[id].remove(); delete remoteAudios[id]; }
+    render();
+  }
+}
+function renderMicButton(root){
+  if(!room) return;
+  const wrap = el('div', {class:'row', style:{marginTop:'14px'}});
+  const label = micStatus==='on' ? '🎤 Mic on — tap to leave voice'
+    : micStatus==='connecting' ? '🎤 Connecting...'
+    : micStatus==='error' ? '🎤 Mic blocked — check permissions'
+    : '🎤 Turn on mic';
+  wrap.appendChild(el('button', {class: micStatus==='on'?'primary':(micStatus==='error'?'danger':''), text: label, onclick: toggleMic}));
+  root.appendChild(wrap);
+  if(micOn) root.appendChild(el('div', {class:'hint', text:'Voice connects phone-to-phone directly — may not work on every network.'}));
+}
+
+connectWS();
+render();
+</script>
+</body>
+</html>
