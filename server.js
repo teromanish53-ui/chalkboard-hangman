@@ -8,10 +8,21 @@ const MAX_STRIKES = 6;
 const ROUND_POOL = 5;
 const WIN_SCORE = 50;
 
+const MIME = { '.html':'text/html', '.json':'application/json', '.js':'application/javascript', '.png':'image/png' };
+
 const server = http.createServer((req, res) => {
-  fs.readFile(path.join(__dirname, 'public', 'index.html'), (err, data) => {
+  const url = req.url.split('?')[0];
+  const staticMap = {
+    '/manifest.json': 'manifest.json',
+    '/service-worker.js': 'service-worker.js',
+    '/icons/icon-192.png': 'icons/icon-192.png',
+    '/icons/icon-512.png': 'icons/icon-512.png',
+  };
+  const relPath = staticMap[url] || 'index.html';
+  const ext = path.extname(relPath);
+  fs.readFile(path.join(__dirname, 'public', relPath), (err, data) => {
     if (err) { res.writeHead(500); res.end('Server error'); return; }
-    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.writeHead(200, { 'Content-Type': MIME[ext] || 'text/html' });
     res.end(data);
   });
 });
@@ -121,7 +132,7 @@ wss.on('connection', (ws) => {
         hostId: msg.id, setterId: null,
         currentWord: '', guessed: [], strikes: 0, hints: [],
         buzzHolder: null, contributions: {}, roundResult: null,
-        finalTable: null,
+        finalTable: null, voiceOn: [],
       };
       rooms.set(code, room);
       ws.playerId = msg.id; ws.roomCode = code;
@@ -155,6 +166,19 @@ wss.on('connection', (ws) => {
       if (room.players.length === 0) { rooms.delete(room.code); return; }
       if (room.hostId === msg.id) room.hostId = room.players[0].id;
       if (room.buzzHolder === msg.id) room.buzzHolder = null;
+      room.voiceOn = (room.voiceOn || []).filter(id => id !== msg.id);
+      broadcastRoom(room);
+      return;
+    }
+
+    if (msg.type === 'voiceStatus') {
+      if (!room) return;
+      room.voiceOn = room.voiceOn || [];
+      if (msg.on) {
+        if (!room.voiceOn.includes(msg.id)) room.voiceOn.push(msg.id);
+      } else {
+        room.voiceOn = room.voiceOn.filter(id => id !== msg.id);
+      }
       broadcastRoom(room);
       return;
     }
@@ -283,6 +307,7 @@ wss.on('connection', (ws) => {
       room.players = room.players.filter(p => p.id !== ws.playerId);
       delete room.scores[ws.playerId];
       if (room.buzzHolder === ws.playerId) room.buzzHolder = null;
+      room.voiceOn = (room.voiceOn || []).filter(id => id !== ws.playerId);
       if (room.players.length === 0) {
         rooms.delete(ws.roomCode);
       } else {
