@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Chalkboard Hangman — Play Online</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#1e2f24">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Hangman">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Patrick+Hand&display=swap" rel="stylesheet">
 <style>
@@ -79,6 +85,14 @@
   .privacy-note{ text-align:center; color:var(--chalk-dim); font-size:0.78rem; margin-top:10px; opacity:0.8; }
   .connbar{ text-align:center; font-size:0.8rem; margin-bottom:8px; }
   .conn-ok{ color: var(--teal); } .conn-bad{ color: var(--coral); }
+  .keyboard{ display:grid; grid-template-columns: repeat(7, 1fr); gap:7px; max-width:420px; margin:10px auto 0; }
+  .keyboard button{
+    padding:10px 0; font-size:1.05rem; border-width:2px; border-radius:8px;
+    font-family:'Kalam', cursive; font-weight:700;
+    box-shadow: 0 2px 0 rgba(242,237,225,0.15);
+  }
+  .keyboard button.used-good{ border-color: var(--teal); color: var(--teal); background: rgba(127,184,176,0.12); box-shadow:none; }
+  .keyboard button.used-bad{ border-color: var(--coral); color: var(--coral); background: rgba(226,114,91,0.1); opacity:0.6; box-shadow:none; }
   .score-table{ max-width:340px; margin:0 auto; width:100%; }
   .score-table-row{ display:flex; justify-content:space-between; padding:8px 6px; border-bottom:1px dashed rgba(242,237,225,0.15); font-size:1.1rem; }
   .score-table-row.first{ color: var(--yellow); font-family:'Kalam',cursive; font-weight:700; }
@@ -336,17 +350,20 @@ function renderGuessing(root){
     ]));
     root.appendChild(el('div', {class:'hint', text:'Buzzer is open — first to tap gets to guess.'}));
   } else if(room.buzzHolder === myId){
-    root.appendChild(el('div', {class:'center-text', text:'You have the buzzer! Type a letter or the whole word.'}));
-    const letterInput = el('input', {attrs:{type:'text', placeholder:'one letter', maxlength:'1'}});
-    const wordInput = el('input', {attrs:{type:'text', placeholder:'whole word guess', maxlength:'30'}});
-    root.appendChild(letterInput);
-    root.appendChild(el('div', {class:'row'}, [
-      el('button', {class:'primary', text:'Guess Letter', onclick: () => {
-        if(!letterInput.value.trim()) return;
-        send({type:'guessLetter', id: myId, letter: letterInput.value.trim()});
-        letterInput.value = '';
-      }})
-    ]));
+    root.appendChild(el('div', {class:'center-text', text:'You have the buzzer! Tap a letter, or guess the whole word.'}));
+
+    const keyboard = el('div', {class:'keyboard'});
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').forEach(letter => {
+      const used = room.guessed.includes(letter);
+      const isGood = used && room.currentWord.includes(letter);
+      const btn = el('button', {text: letter, class: used ? (isGood?'used-good':'used-bad') : ''});
+      if(used) btn.disabled = true;
+      btn.addEventListener('click', () => send({type:'guessLetter', id: myId, letter}));
+      keyboard.appendChild(btn);
+    });
+    root.appendChild(keyboard);
+
+    const wordInput = el('input', {attrs:{type:'text', placeholder:'or type the whole word', maxlength:'30'}, style:{marginTop:'12px'}});
     root.appendChild(wordInput);
     root.appendChild(el('div', {class:'row'}, [
       el('button', {class:'primary', text:'Guess Whole Word', onclick: () => {
@@ -355,7 +372,6 @@ function renderGuessing(root){
         wordInput.value = '';
       }})
     ]));
-    letterInput.focus();
   } else {
     root.appendChild(el('div', {class:'center-text', html:'<span class="turn-flag" style="color:'+playerColor(room.buzzHolder)+'">'+escapeHtml(playerName(room.buzzHolder))+'</span> has the buzzer'}));
     root.appendChild(el('div', {class:'hint', text:'Wait for their guess before you can buzz in.'}));
@@ -457,9 +473,17 @@ async function ensurePeerConnection(peerId, initiate){
 }
 async function connectToAllPeers(){
   if(!micOn || !room) return;
+  const voiceOn = room.voiceOn || [];
   for(const p of room.players){
     if(p.id === myId) continue;
+    if(!voiceOn.includes(p.id)) continue; // only connect once they've turned their mic on too
+    if(peerConns[p.id]) continue;
+    micStatus = 'connecting';
     await ensurePeerConnection(p.id, myId < p.id);
+  }
+  if(micOn && micStatus !== 'on'){
+    const anyoneElseOn = voiceOn.some(id => id !== myId);
+    micStatus = anyoneElseOn ? 'connecting' : 'ready';
   }
 }
 async function handleSignal(fromId, data){
@@ -479,14 +503,17 @@ async function handleSignal(fromId, data){
 }
 async function toggleMic(){
   if(!micOn){
-    micStatus = 'connecting'; render();
+    micStatus = 'requesting'; render();
     try{ localStream = await navigator.mediaDevices.getUserMedia({audio:true}); }
     catch(e){ micStatus = 'error'; render(); return; }
     micOn = true;
+    micStatus = 'ready';
+    send({type:'voiceStatus', id: myId, on: true});
     await connectToAllPeers();
     render();
   } else {
     micOn = false; micStatus = 'off';
+    send({type:'voiceStatus', id: myId, on: false});
     if(localStream){ localStream.getTracks().forEach(t=>t.stop()); localStream = null; }
     for(const id in peerConns){ peerConns[id].close(); delete peerConns[id]; }
     for(const id in remoteAudios){ remoteAudios[id].remove(); delete remoteAudios[id]; }
@@ -497,16 +524,59 @@ function renderMicButton(root){
   if(!room) return;
   const wrap = el('div', {class:'row', style:{marginTop:'14px'}});
   const label = micStatus==='on' ? '🎤 Mic on — tap to leave voice'
-    : micStatus==='connecting' ? '🎤 Connecting...'
+    : micStatus==='connecting' ? '🎤 Connecting to others...'
+    : micStatus==='ready' ? '🎤 Mic ready — waiting for others'
+    : micStatus==='requesting' ? '🎤 Asking for mic permission...'
     : micStatus==='error' ? '🎤 Mic blocked — check permissions'
     : '🎤 Turn on mic';
   wrap.appendChild(el('button', {class: micStatus==='on'?'primary':(micStatus==='error'?'danger':''), text: label, onclick: toggleMic}));
   root.appendChild(wrap);
-  if(micOn) root.appendChild(el('div', {class:'hint', text:'Voice connects phone-to-phone — should work on more networks now, but still can\'t be guaranteed on every one.'}));
+  if(micOn) root.appendChild(el('div', {class:'hint', text:'Everyone needs to tap "Turn on mic" for voice to connect between you.'}));
 }
 
 connectWS();
 render();
+
+// ---------- PWA install ----------
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  const btn = document.getElementById('installBtn');
+  if(btn) btn.style.display = 'inline-block';
+});
+function showInstallButtonIfNeeded(){
+  const already = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  if(already) return;
+  let btn = document.getElementById('installBtn');
+  if(!btn){
+    btn = document.createElement('button');
+    btn.id = 'installBtn';
+    btn.textContent = '⬇ Install App';
+    btn.style.display = 'none';
+    btn.style.margin = '0 auto 10px';
+    btn.style.display = 'block';
+    btn.className = 'primary';
+    btn.addEventListener('click', async () => {
+      if(deferredInstallPrompt){
+        deferredInstallPrompt.prompt();
+        await deferredInstallPrompt.userChoice;
+        deferredInstallPrompt = null;
+        btn.style.display = 'none';
+      } else {
+        alert('On iPhone: tap the Share icon, then "Add to Home Screen".\nOn Android Chrome: tap the ⋮ menu, then "Install app".');
+      }
+    });
+    document.querySelector('.frame').insertBefore(btn, document.querySelector('.board'));
+  }
+}
+showInstallButtonIfNeeded();
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/service-worker.js').catch(() => {});
+  });
+}
 </script>
 </body>
 </html>
