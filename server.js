@@ -15,8 +15,8 @@ const server = http.createServer((req, res) => {
   const staticMap = {
     '/manifest.json': 'manifest.json',
     '/service-worker.js': 'service-worker.js',
-    '/icons/icon-192.png': 'icons/icon-192.png',
-    '/icons/icon-512.png': 'icons/icon-512.png',
+    '/icon-192.png': 'icon-192.png',
+    '/icon-512.png': 'icon-512.png',
   };
   const relPath = staticMap[url] || 'index.html';
   const ext = path.extname(relPath);
