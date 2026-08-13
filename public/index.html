@@ -6,7 +6,7 @@
 <title>Chalkboard Hangman — Play Online</title>
 <link rel="manifest" href="/manifest.json">
 <meta name="theme-color" content="#1e2f24">
-<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Hangman">
@@ -98,6 +98,28 @@
   .score-table-row.first{ color: var(--yellow); font-family:'Kalam',cursive; font-weight:700; }
   .leave-bar{ position:absolute; top:10px; right:10px; }
   .leave-bar button{ font-size:0.8rem; padding:4px 10px; border-width:1.5px; }
+
+  /* --- visual polish --- */
+  @keyframes titleGlow{ 0%,100%{ text-shadow: 0 0 8px rgba(242,237,225,0.25);} 50%{ text-shadow: 0 0 18px rgba(232,196,104,0.45);} }
+  h1.title{ animation: titleGlow 4s ease-in-out infinite; }
+  @keyframes fadeInUp{ from{ opacity:0; transform: translateY(6px);} to{ opacity:1; transform: translateY(0);} }
+  .screen.fade-in{ animation: fadeInUp 0.35s ease; }
+  .dust{ position:absolute; border-radius:50%; background: rgba(242,237,225,0.5); pointer-events:none; }
+  .board{ position:relative; overflow:hidden; }
+  @keyframes floatDust{ 0%{ transform: translateY(0) translateX(0); opacity:0.5;} 50%{ opacity:0.9;} 100%{ transform: translateY(-14px) translateX(6px); opacity:0.3;} }
+  @keyframes buzzPulse{ 0%,100%{ box-shadow: 0 0 0 0 rgba(232,196,104,0.5);} 50%{ box-shadow: 0 0 0 12px rgba(232,196,104,0);} }
+  button.big-buzz{ animation: buzzPulse 1.6s ease-in-out infinite; }
+  .score-chip-row{ display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:14px; padding-top:12px; border-top:1px dashed rgba(242,237,225,0.15); }
+  .score-chip{ display:flex; align-items:center; gap:6px; padding:5px 10px; border-radius:999px; background: rgba(242,237,225,0.06); font-size:0.85rem; border:1px solid rgba(242,237,225,0.12); }
+  .score-chip .dot{ width:9px; height:9px; border-radius:50%; }
+  .score-chip .pts{ color: var(--yellow); font-weight:bold; }
+  .timer-ring{ text-align:center; font-family:'Kalam',cursive; font-weight:700; font-size:1.3rem; margin:4px 0; }
+  .timer-ring.warn{ color: var(--coral); animation: buzzPulse 1s ease-in-out infinite; }
+  .timer-ring.normal{ color: var(--teal); }
+  .round-timer{ text-align:center; font-size:0.82rem; color: var(--chalk-dim); margin-bottom:6px; }
+  .round-timer.warn{ color: var(--coral); }
+  .flourish{ text-align:center; opacity:0.55; margin:-4px 0 12px; font-size:0.9rem; letter-spacing:4px; color: var(--chalk-dim); }
+  .confetti-emoji{ font-size:2rem; text-align:center; }
 </style>
 </head>
 <body>
@@ -105,10 +127,12 @@
   <div class="board">
     <div class="leave-bar" id="leaveBar"></div>
     <h1 class="title">Chalkboard Hangman</h1>
+    <div class="flourish">✦ ⋆ ✦</div>
     <div class="connbar" id="connbar"></div>
     <div class="roomtag" id="roomtag"></div>
     <div class="subtitle" id="subtitle">Play with friends on different phones</div>
     <div class="screen" id="screen"></div>
+    <div id="dustLayer"></div>
   </div>
 </div>
 
@@ -209,6 +233,7 @@ function render(){
   if(!room){
     subtitleEl.textContent = 'Play with friends on different phones';
     renderHome(screenEl);
+    retriggerFadeIn();
     return;
   }
   subtitleEl.textContent = subtitleFor(room.phase);
@@ -218,7 +243,49 @@ function render(){
   else if(room.phase === 'round-result') renderRoundResult(screenEl);
   else if(room.phase === 'game-over') renderGameOver(screenEl);
   if(room.phase !== 'game-over') renderMicButton(screenEl);
+  retriggerFadeIn();
 }
+function retriggerFadeIn(){
+  screenEl.classList.remove('fade-in');
+  void screenEl.offsetWidth;
+  screenEl.classList.add('fade-in');
+}
+
+// ---------- decorative chalk dust ----------
+const dustLayerEl = document.getElementById('dustLayer');
+function spawnDust(){
+  if(!dustLayerEl) return;
+  const n = document.createElement('div');
+  n.className = 'dust';
+  const size = 2 + Math.random()*3;
+  n.style.width = size + 'px';
+  n.style.height = size + 'px';
+  n.style.left = Math.random()*100 + '%';
+  n.style.top = Math.random()*100 + '%';
+  n.style.animation = 'floatDust ' + (3 + Math.random()*2) + 's ease-in-out forwards';
+  dustLayerEl.appendChild(n);
+  setTimeout(() => n.remove(), 5500);
+}
+setInterval(spawnDust, 700);
+
+// ---------- live countdown ticking (updates text only, doesn't disturb inputs) ----------
+setInterval(() => {
+  if(!room || room.phase !== 'guessing') return;
+  const roundEl = document.getElementById('roundTimerText');
+  if(roundEl && room.roundDeadline){
+    const remain = Math.max(0, Math.round((room.roundDeadline - Date.now())/1000));
+    const mm = Math.floor(remain/60), ss = remain%60;
+    roundEl.textContent = 'Round time left: ' + mm + ':' + String(ss).padStart(2,'0');
+    roundEl.parentElement.classList.toggle('warn', remain <= 20);
+  }
+  const buzzEl = document.getElementById('buzzTimerText');
+  if(buzzEl && room.buzzDeadline){
+    const remain = Math.max(0, Math.round((room.buzzDeadline - Date.now())/1000));
+    buzzEl.textContent = remain + 's to answer';
+    buzzEl.parentElement.classList.toggle('warn', remain <= 5);
+    buzzEl.parentElement.classList.toggle('normal', remain > 5);
+  }
+}, 1000);
 function subtitleFor(phase){
   switch(phase){
     case 'lobby': return 'Waiting in the lobby';
@@ -231,12 +298,12 @@ function subtitleFor(phase){
 }
 function renderScorebar(root){
   if(!room) return;
-  const bar = el('div', {class:'scorebar'});
+  const bar = el('div', {class:'score-chip-row'});
   room.players.forEach((p,i) => {
-    bar.appendChild(el('span', {}, [
-      el('span', {text:p.name, style:{color:colorFor(i)}}),
-      document.createTextNode(': '),
-      el('span', {class:'pts', text:(room.scores[p.id]||0) + '/50'})
+    bar.appendChild(el('div', {class:'score-chip'}, [
+      el('span', {class:'dot', style:{background: colorFor(i)}}),
+      el('span', {text: p.name}),
+      el('span', {class:'pts', text: (room.scores[p.id]||0) + '/' + (room.targetScore || 50)})
     ]));
   });
   root.appendChild(bar);
@@ -284,6 +351,23 @@ function renderLobby(root){
     ]));
   });
   root.appendChild(list);
+
+  if(myId === room.hostId){
+    const scoreRow = el('div', {class:'row', style:{alignItems:'center'}});
+    scoreRow.appendChild(el('span', {class:'hint', text:'Winning score:', style:{marginTop:'0'}}));
+    const scoreInput = el('input', {attrs:{type:'text', inputmode:'numeric', maxlength:'3', style:'max-width:80px;'}});
+    scoreInput.value = room.targetScore || 50;
+    scoreRow.appendChild(scoreInput);
+    scoreRow.appendChild(el('button', {text:'Set', onclick: () => {
+      const val = parseInt(scoreInput.value, 10);
+      if(!val) return;
+      send({type:'setTargetScore', id: myId, value: val});
+    }}));
+    root.appendChild(scoreRow);
+  } else {
+    root.appendChild(el('div', {class:'hint', text:'First to ' + (room.targetScore || 50) + ' points wins.'}));
+  }
+
   if(myId === room.hostId){
     const canStart = room.players.length >= 2;
     root.appendChild(el('div', {class:'row'}, [
@@ -321,6 +405,7 @@ function renderWordEntry(root){
 
 // ---------- GUESSING (buzzer + native input) ----------
 function renderGuessing(root){
+  root.appendChild(el('div', {class:'round-timer', attrs:{id:'roundTimerText'}, text:'Round time left: 2:00'}));
   root.appendChild(buildGallows(room.strikes));
 
   const wordRow = el('div', {class:'word-row'});
@@ -350,6 +435,7 @@ function renderGuessing(root){
     ]));
     root.appendChild(el('div', {class:'hint', text:'Buzzer is open — first to tap gets to guess.'}));
   } else if(room.buzzHolder === myId){
+    root.appendChild(el('div', {class:'timer-ring normal', attrs:{id:'buzzTimerText'}, text:'20s to answer'}));
     root.appendChild(el('div', {class:'center-text', text:'You have the buzzer! Tap a letter, or guess the whole word.'}));
 
     const keyboard = el('div', {class:'keyboard'});
@@ -397,7 +483,8 @@ function renderRoundResult(root){
 
 // ---------- GAME OVER ----------
 function renderGameOver(root){
-  root.appendChild(el('div', {class:'result-banner win', text:'🏆 ' + room.finalTable[0].name + ' wins the game!'}));
+  root.appendChild(el('div', {class:'confetti-emoji', text:'🎉🏆🎉'}));
+  root.appendChild(el('div', {class:'result-banner win', text: room.finalTable[0].name + ' wins the game!'}));
   const table = el('div', {class:'score-table'});
   room.finalTable.forEach((row, i) => {
     table.appendChild(el('div', {class:'score-table-row' + (i===0?' first':'')}, [
