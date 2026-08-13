@@ -6,7 +6,9 @@ const WebSocket = require('ws');
 const PORT = process.env.PORT || 3000;
 const MAX_STRIKES = 6;
 const ROUND_POOL = 5;
-const WIN_SCORE = 50;
+const DEFAULT_TARGET_SCORE = 50;
+const BUZZ_TIME_MS = 20000;
+const ROUND_TIME_MS = 120000;
 
 const MIME = { '.html':'text/html', '.json':'application/json', '.js':'application/javascript', '.png':'image/png' };
 
@@ -30,6 +32,19 @@ const server = http.createServer((req, res) => {
 const wss = new WebSocket.Server({ server });
 const rooms = new Map();
 const socketsByPlayer = new Map();
+const buzzTimers = new Map();  // code -> timeout handle
+const roundTimers = new Map(); // code -> timeout handle
+
+function clearBuzzTimer(code) {
+  if (buzzTimers.has(code)) { clearTimeout(buzzTimers.get(code)); buzzTimers.delete(code); }
+}
+function clearRoundTimer(code) {
+  if (roundTimers.has(code)) { clearTimeout(roundTimers.get(code)); roundTimers.delete(code); }
+}
+function clearAllTimers(code) {
+  clearBuzzTimer(code);
+  clearRoundTimer(code);
+}
 
 function randomCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -55,6 +70,8 @@ function freshRoundState(room) {
   room.buzzHolder = null;
   room.contributions = {};
   room.roundResult = null;
+  room.buzzDeadline = null;
+  room.roundDeadline = null;
 }
 
 function wordDisplayDone(room) {
@@ -107,12 +124,57 @@ function distributePoints(room, winnerIdIfInstant) {
 }
 
 function checkGameOver(room) {
-  const winner = room.players.find(p => (room.scores[p.id] || 0) >= WIN_SCORE);
+  const target = room.targetScore || DEFAULT_TARGET_SCORE;
+  const winner = room.players.find(p => (room.scores[p.id] || 0) >= target);
   if (!winner) return false;
   room.finalTable = [...room.players]
     .map(p => ({ id: p.id, name: p.name, score: room.scores[p.id] || 0 }))
     .sort((a, b) => b.score - a.score);
   return true;
+}
+
+function loseRoundByStrikeout(room, note) {
+  const setterName = room.players.find(p => p.id === room.setterId).name;
+  room.scores[room.setterId] = (room.scores[room.setterId] || 0) + ROUND_POOL;
+  room.roundResult = { won: false, note: note || (setterName + ' stumped the group and takes ' + ROUND_POOL + ' points.') };
+  room.buzzHolder = null;
+  room.buzzDeadline = null;
+  room.roundDeadline = null;
+  clearAllTimers(room.code);
+  room.phase = checkGameOver(room) ? 'game-over' : 'round-result';
+}
+
+function startRoundTimer(room) {
+  clearRoundTimer(room.code);
+  room.roundDeadline = Date.now() + ROUND_TIME_MS;
+  const t = setTimeout(() => {
+    const r = rooms.get(room.code);
+    if (!r || r.phase !== 'guessing') return;
+    const setterName = r.players.find(p => p.id === r.setterId).name;
+    loseRoundByStrikeout(r, "Time's up! " + setterName + ' takes ' + ROUND_POOL + ' points.');
+    broadcastRoom(r);
+  }, ROUND_TIME_MS);
+  roundTimers.set(room.code, t);
+}
+
+function startBuzzTimer(room) {
+  clearBuzzTimer(room.code);
+  room.buzzDeadline = Date.now() + BUZZ_TIME_MS;
+  const holderAtStart = room.buzzHolder;
+  const t = setTimeout(() => {
+    const r = rooms.get(room.code);
+    if (!r || r.phase !== 'guessing' || r.buzzHolder !== holderAtStart) return;
+    r.strikes += 1;
+    r.buzzHolder = null;
+    r.buzzDeadline = null;
+    clearBuzzTimer(r.code);
+    maybeRevealHint(r);
+    if (r.strikes >= MAX_STRIKES) {
+      loseRoundByStrikeout(r);
+    }
+    broadcastRoom(r);
+  }, BUZZ_TIME_MS);
+  buzzTimers.set(room.code, t);
 }
 
 wss.on('connection', (ws) => {
@@ -132,7 +194,8 @@ wss.on('connection', (ws) => {
         hostId: msg.id, setterId: null,
         currentWord: '', guessed: [], strikes: 0, hints: [],
         buzzHolder: null, contributions: {}, roundResult: null,
-        finalTable: null, voiceOn: [],
+        finalTable: null, voiceOn: [], targetScore: DEFAULT_TARGET_SCORE,
+        buzzDeadline: null, roundDeadline: null,
       };
       rooms.set(code, room);
       ws.playerId = msg.id; ws.roomCode = code;
@@ -163,7 +226,7 @@ wss.on('connection', (ws) => {
       room.players = room.players.filter(p => p.id !== msg.id);
       delete room.scores[msg.id];
       socketsByPlayer.delete(msg.id);
-      if (room.players.length === 0) { rooms.delete(room.code); return; }
+      if (room.players.length === 0) { rooms.delete(room.code); clearAllTimers(room.code); return; }
       if (room.hostId === msg.id) room.hostId = room.players[0].id;
       if (room.buzzHolder === msg.id) room.buzzHolder = null;
       room.voiceOn = (room.voiceOn || []).filter(id => id !== msg.id);
@@ -179,6 +242,15 @@ wss.on('connection', (ws) => {
       } else {
         room.voiceOn = room.voiceOn.filter(id => id !== msg.id);
       }
+      broadcastRoom(room);
+      return;
+    }
+
+    if (msg.type === 'setTargetScore') {
+      if (!room || msg.id !== room.hostId || room.phase !== 'lobby') return;
+      const val = parseInt(msg.value, 10);
+      if (!Number.isFinite(val) || val < 10 || val > 500) { sendError(ws, 'Winning score must be between 10 and 500.'); return; }
+      room.targetScore = val;
       broadcastRoom(room);
       return;
     }
@@ -201,6 +273,7 @@ wss.on('connection', (ws) => {
       room.currentWord = val.toUpperCase();
       freshRoundState(room);
       room.phase = 'guessing';
+      startRoundTimer(room);
       broadcastRoom(room);
       return;
     }
@@ -210,6 +283,7 @@ wss.on('connection', (ws) => {
       if (msg.id === room.setterId) return;
       if (room.buzzHolder) return;
       room.buzzHolder = msg.id;
+      startBuzzTimer(room);
       broadcastRoom(room);
       return;
     }
@@ -227,17 +301,20 @@ wss.on('connection', (ws) => {
           room.roundResult = { won: true, note: room.players.find(p => p.id === msg.id).name + ' finished the word!' };
           room.setterId = msg.id;
           distributePoints(room);
+          room.buzzHolder = null; room.buzzDeadline = null; room.roundDeadline = null;
+          clearAllTimers(room.code);
           room.phase = checkGameOver(room) ? 'game-over' : 'round-result';
+        } else {
+          startBuzzTimer(room); // correct guess refreshes their 20s
         }
       } else {
         room.strikes += 1;
         room.buzzHolder = null;
+        room.buzzDeadline = null;
+        clearBuzzTimer(room.code);
         maybeRevealHint(room);
         if (room.strikes >= MAX_STRIKES) {
-          const setterName = room.players.find(p => p.id === room.setterId).name;
-          room.scores[room.setterId] = (room.scores[room.setterId] || 0) + ROUND_POOL;
-          room.roundResult = { won: false, note: setterName + ' stumped the group and takes ' + ROUND_POOL + ' points.' };
-          room.phase = checkGameOver(room) ? 'game-over' : 'round-result';
+          loseRoundByStrikeout(room);
         }
       }
       broadcastRoom(room);
@@ -254,16 +331,17 @@ wss.on('connection', (ws) => {
         room.roundResult = { won: true, note: room.players.find(p => p.id === msg.id).name + ' guessed the whole word!' };
         room.setterId = msg.id;
         distributePoints(room, msg.id);
+        room.buzzHolder = null; room.buzzDeadline = null; room.roundDeadline = null;
+        clearAllTimers(room.code);
         room.phase = checkGameOver(room) ? 'game-over' : 'round-result';
       } else {
         room.strikes += 1;
         room.buzzHolder = null;
+        room.buzzDeadline = null;
+        clearBuzzTimer(room.code);
         maybeRevealHint(room);
         if (room.strikes >= MAX_STRIKES) {
-          const setterName = room.players.find(p => p.id === room.setterId).name;
-          room.scores[room.setterId] = (room.scores[room.setterId] || 0) + ROUND_POOL;
-          room.roundResult = { won: false, note: setterName + ' stumped the group and takes ' + ROUND_POOL + ' points.' };
-          room.phase = checkGameOver(room) ? 'game-over' : 'round-result';
+          loseRoundByStrikeout(room);
         }
       }
       broadcastRoom(room);
@@ -275,6 +353,7 @@ wss.on('connection', (ws) => {
       room.phase = 'word-entry';
       room.currentWord = '';
       freshRoundState(room);
+      clearAllTimers(room.code);
       broadcastRoom(room);
       return;
     }
@@ -285,6 +364,7 @@ wss.on('connection', (ws) => {
       room.setterId = null;
       room.currentWord = '';
       freshRoundState(room);
+      clearAllTimers(room.code);
       room.finalTable = null;
       room.phase = 'lobby';
       broadcastRoom(room);
@@ -309,7 +389,7 @@ wss.on('connection', (ws) => {
       if (room.buzzHolder === ws.playerId) room.buzzHolder = null;
       room.voiceOn = (room.voiceOn || []).filter(id => id !== ws.playerId);
       if (room.players.length === 0) {
-        rooms.delete(ws.roomCode);
+        rooms.delete(ws.roomCode); clearAllTimers(ws.roomCode);
       } else {
         if (room.hostId === ws.playerId) room.hostId = room.players[0].id;
         broadcastRoom(room);
