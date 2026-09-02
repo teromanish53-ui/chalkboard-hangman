@@ -497,8 +497,8 @@ function renderGuessing(root){
       el('button', {class: eligible ? '' : 'ghost', text: '💡 Give a hint (' + room.hints.length + '/2 used)', onclick: () => { if(eligible) send({type:'giveHint', id: myId}); }, attrs: eligible ? {} : {disabled:'disabled'}})
     ]));
     if(uniqueLetters.size <= 4) root.appendChild(el('div', {class:'hint', text:'Hints aren\'t available for short words.'}));
-  } else if((room.lockedOut||[]).includes(myId)){
-    root.appendChild(el('div', {class:'lockout-note', text:'You guessed wrong this round — wait for someone else to try.'}));
+  } else if(room.excludedFromBuzz === myId){
+    root.appendChild(el('div', {class:'lockout-note', text:'You just guessed wrong — let someone else try, then you can buzz again.'}));
   } else if(!room.buzzHolder){
     root.appendChild(el('div', {class:'row', style:{marginTop:'10px'}}, [
       el('button', {class:'primary big-buzz', text:'🔔 Buzz In', onclick: () => send({type:'buzz', id: myId})})
