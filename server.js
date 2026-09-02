@@ -64,7 +64,7 @@ function freshRoundState(room) {
   room.strikes = 0;
   room.hints = [];
   room.buzzHolder = null;
-  room.lockedOut = [];
+  room.excludedFromBuzz = null;
   room.contributions = {};
   room.roundResult = null;
   room.buzzDeadline = null;
@@ -157,7 +157,7 @@ function startBuzzTimer(room) {
     const r = rooms.get(room.code);
     if (!r || r.phase !== 'guessing' || r.buzzHolder !== holderAtStart) return;
     r.strikes += 1;
-    if (!r.lockedOut.includes(holderAtStart)) r.lockedOut.push(holderAtStart);
+    r.excludedFromBuzz = holderAtStart;
     r.buzzHolder = null;
     r.buzzDeadline = null;
     clearBuzzTimer(r.code);
@@ -173,7 +173,7 @@ function permanentlyRemove(code, playerId) {
   room.players = room.players.filter(p => p.id !== playerId);
   delete room.scores[playerId];
   room.voiceOn = (room.voiceOn || []).filter(id => id !== playerId);
-  room.lockedOut = (room.lockedOut || []).filter(id => id !== playerId);
+  if (room.excludedFromBuzz === playerId) room.excludedFromBuzz = null;
   socketsByPlayer.delete(playerId);
   clearDisconnectTimer(playerId);
 
@@ -211,7 +211,7 @@ wss.on('connection', (ws) => {
         scores: { [msg.id]: 0 },
         hostId: msg.id, setterId: null,
         currentWord: '', guessed: [], strikes: 0, hints: [],
-        buzzHolder: null, lockedOut: [], contributions: {}, roundResult: null,
+        buzzHolder: null, excludedFromBuzz: null, contributions: {}, roundResult: null,
         finalTable: null, voiceOn: [], targetScore: DEFAULT_TARGET_SCORE,
         buzzDeadline: null, roundDeadline: null,
       };
@@ -300,8 +300,9 @@ wss.on('connection', (ws) => {
       if (!room || room.phase !== 'guessing') return;
       if (msg.id === room.setterId) return;
       if (room.buzzHolder) return;
-      if ((room.lockedOut || []).includes(msg.id)) return;
+      if ((msg.id === room.excludedFromBuzz)) return;
       room.buzzHolder = msg.id;
+      room.excludedFromBuzz = null; // a different player stepped up — the previous miss no longer blocks anyone
       startBuzzTimer(room);
       broadcastRoom(room);
       return;
@@ -328,7 +329,7 @@ wss.on('connection', (ws) => {
         }
       } else {
         room.strikes += 1;
-        if (!room.lockedOut.includes(msg.id)) room.lockedOut.push(msg.id);
+        room.excludedFromBuzz = msg.id;
         room.buzzHolder = null;
         room.buzzDeadline = null;
         clearBuzzTimer(room.code);
@@ -353,7 +354,7 @@ wss.on('connection', (ws) => {
         room.phase = checkGameOver(room) ? 'game-over' : 'round-result';
       } else {
         room.strikes += 1;
-        if (!room.lockedOut.includes(msg.id)) room.lockedOut.push(msg.id);
+        room.excludedFromBuzz = msg.id;
         room.buzzHolder = null;
         room.buzzDeadline = null;
         clearBuzzTimer(room.code);
