@@ -9,8 +9,9 @@ const ROUND_POOL = 5;
 const DEFAULT_TARGET_SCORE = 50;
 const BUZZ_TIME_MS = 20000;
 const ROUND_TIME_MS = 120000;
+const DISCONNECT_GRACE_MS = 120000; // 2 min to reconnect before permanently removed
 
-const MIME = { '.html':'text/html', '.json':'application/json', '.js':'application/javascript', '.png':'image/png' };
+const MIME = { '.html': 'text/html', '.json': 'application/json', '.js': 'application/javascript', '.png': 'image/png' };
 
 const server = http.createServer((req, res) => {
   const url = req.url.split('?')[0];
@@ -32,19 +33,14 @@ const server = http.createServer((req, res) => {
 const wss = new WebSocket.Server({ server });
 const rooms = new Map();
 const socketsByPlayer = new Map();
-const buzzTimers = new Map();  // code -> timeout handle
-const roundTimers = new Map(); // code -> timeout handle
+const buzzTimers = new Map();
+const roundTimers = new Map();
+const disconnectTimers = new Map(); // playerId -> timeout handle
 
-function clearBuzzTimer(code) {
-  if (buzzTimers.has(code)) { clearTimeout(buzzTimers.get(code)); buzzTimers.delete(code); }
-}
-function clearRoundTimer(code) {
-  if (roundTimers.has(code)) { clearTimeout(roundTimers.get(code)); roundTimers.delete(code); }
-}
-function clearAllTimers(code) {
-  clearBuzzTimer(code);
-  clearRoundTimer(code);
-}
+function clearBuzzTimer(code) { if (buzzTimers.has(code)) { clearTimeout(buzzTimers.get(code)); buzzTimers.delete(code); } }
+function clearRoundTimer(code) { if (roundTimers.has(code)) { clearTimeout(roundTimers.get(code)); roundTimers.delete(code); } }
+function clearAllTimers(code) { clearBuzzTimer(code); clearRoundTimer(code); }
+function clearDisconnectTimer(playerId) { if (disconnectTimers.has(playerId)) { clearTimeout(disconnectTimers.get(playerId)); disconnectTimers.delete(playerId); } }
 
 function randomCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -68,6 +64,7 @@ function freshRoundState(room) {
   room.strikes = 0;
   room.hints = [];
   room.buzzHolder = null;
+  room.lockedOut = [];
   room.contributions = {};
   room.roundResult = null;
   room.buzzDeadline = null;
@@ -78,18 +75,15 @@ function wordDisplayDone(room) {
   return room.currentWord.split('').every(ch => ch === ' ' || room.guessed.includes(ch) || room.hints.some(h => h.letter === ch));
 }
 
-function maybeRevealHint(room) {
-  const word = room.currentWord;
-  const uniqueLetters = [...new Set(word.replace(/ /g, '').split(''))];
-  if (uniqueLetters.length <= 4) return;
-  const thresholds = [2, 4];
-  const hintIndex = thresholds.indexOf(room.strikes);
-  if (hintIndex === -1) return;
-  if (room.hints.length > hintIndex) return;
+function giveHintLetter(room) {
+  const uniqueLetters = [...new Set(room.currentWord.replace(/ /g, '').split(''))];
+  if (uniqueLetters.length <= 4) return false;
+  if (room.hints.length >= 2) return false;
   const candidates = uniqueLetters.filter(l => !room.guessed.includes(l) && !room.hints.some(h => h.letter === l));
-  if (candidates.length === 0) return;
+  if (candidates.length === 0) return false;
   const pick = candidates[Math.floor(Math.random() * candidates.length)];
   room.hints.push({ letter: pick });
+  return true;
 }
 
 function distributePoints(room, winnerIdIfInstant) {
@@ -118,9 +112,7 @@ function distributePoints(room, winnerIdIfInstant) {
     remainder -= 1;
     i += 1;
   }
-  for (const id in raw) {
-    room.scores[id] = (room.scores[id] || 0) + raw[id];
-  }
+  for (const id in raw) room.scores[id] = (room.scores[id] || 0) + raw[id];
 }
 
 function checkGameOver(room) {
@@ -134,7 +126,7 @@ function checkGameOver(room) {
 }
 
 function loseRoundByStrikeout(room, note) {
-  const setterName = room.players.find(p => p.id === room.setterId).name;
+  const setterName = (room.players.find(p => p.id === room.setterId) || {}).name || 'The Word Master';
   room.scores[room.setterId] = (room.scores[room.setterId] || 0) + ROUND_POOL;
   room.roundResult = { won: false, note: note || (setterName + ' stumped the group and takes ' + ROUND_POOL + ' points.') };
   room.buzzHolder = null;
@@ -150,7 +142,7 @@ function startRoundTimer(room) {
   const t = setTimeout(() => {
     const r = rooms.get(room.code);
     if (!r || r.phase !== 'guessing') return;
-    const setterName = r.players.find(p => p.id === r.setterId).name;
+    const setterName = (r.players.find(p => p.id === r.setterId) || {}).name || 'The Word Master';
     loseRoundByStrikeout(r, "Time's up! " + setterName + ' takes ' + ROUND_POOL + ' points.');
     broadcastRoom(r);
   }, ROUND_TIME_MS);
@@ -165,16 +157,42 @@ function startBuzzTimer(room) {
     const r = rooms.get(room.code);
     if (!r || r.phase !== 'guessing' || r.buzzHolder !== holderAtStart) return;
     r.strikes += 1;
+    if (!r.lockedOut.includes(holderAtStart)) r.lockedOut.push(holderAtStart);
     r.buzzHolder = null;
     r.buzzDeadline = null;
     clearBuzzTimer(r.code);
-    maybeRevealHint(r);
-    if (r.strikes >= MAX_STRIKES) {
-      loseRoundByStrikeout(r);
-    }
+    if (r.strikes >= MAX_STRIKES) loseRoundByStrikeout(r);
     broadcastRoom(r);
   }, BUZZ_TIME_MS);
   buzzTimers.set(room.code, t);
+}
+
+function permanentlyRemove(code, playerId) {
+  const room = rooms.get(code);
+  if (!room) return;
+  room.players = room.players.filter(p => p.id !== playerId);
+  delete room.scores[playerId];
+  room.voiceOn = (room.voiceOn || []).filter(id => id !== playerId);
+  room.lockedOut = (room.lockedOut || []).filter(id => id !== playerId);
+  socketsByPlayer.delete(playerId);
+  clearDisconnectTimer(playerId);
+
+  if (room.players.length === 0) { rooms.delete(code); clearAllTimers(code); return; }
+
+  if (room.hostId === playerId) room.hostId = room.players[0].id;
+
+  if (room.buzzHolder === playerId) { room.buzzHolder = null; room.buzzDeadline = null; clearBuzzTimer(code); }
+
+  if (room.setterId === playerId && (room.phase === 'word-entry' || room.phase === 'guessing')) {
+    // orphaned round — void it, hand word-giving duty to the host, back to word-entry
+    room.setterId = room.hostId;
+    room.currentWord = '';
+    freshRoundState(room);
+    clearAllTimers(code);
+    room.phase = 'word-entry';
+  }
+
+  broadcastRoom(room);
 }
 
 wss.on('connection', (ws) => {
@@ -189,11 +207,11 @@ wss.on('connection', (ws) => {
       const code = randomCode();
       const room = {
         code, phase: 'lobby',
-        players: [{ id: msg.id, name: msg.name }],
+        players: [{ id: msg.id, name: msg.name, connected: true }],
         scores: { [msg.id]: 0 },
         hostId: msg.id, setterId: null,
         currentWord: '', guessed: [], strikes: 0, hints: [],
-        buzzHolder: null, contributions: {}, roundResult: null,
+        buzzHolder: null, lockedOut: [], contributions: {}, roundResult: null,
         finalTable: null, voiceOn: [], targetScore: DEFAULT_TARGET_SCORE,
         buzzDeadline: null, roundDeadline: null,
       };
@@ -207,11 +225,27 @@ wss.on('connection', (ws) => {
     if (msg.type === 'join') {
       const room = rooms.get(msg.code);
       if (!room) { sendError(ws, 'No room found with that code.'); return; }
-      if (room.phase !== 'lobby') { sendError(ws, 'That game has already started.'); return; }
+
+      const existing = room.players.find(p => p.id === msg.id);
+      if (existing) {
+        // reconnect — same browser/id rejoining, mid-game or not
+        existing.connected = true;
+        if (msg.name && msg.name.trim()) existing.name = msg.name.trim();
+        clearDisconnectTimer(msg.id);
+        ws.playerId = msg.id; ws.roomCode = msg.code;
+        socketsByPlayer.set(msg.id, ws);
+        broadcastRoom(room);
+        return;
+      }
+
+      if (room.phase !== 'lobby') {
+        sendError(ws, 'That game already started — ask the host to add you next round.');
+        return;
+      }
       if (room.players.some(p => p.name.toLowerCase() === (msg.name || '').trim().toLowerCase())) {
         sendError(ws, 'That name is taken in this room.'); return;
       }
-      room.players.push({ id: msg.id, name: msg.name });
+      room.players.push({ id: msg.id, name: msg.name, connected: true });
       room.scores[msg.id] = 0;
       ws.playerId = msg.id; ws.roomCode = msg.code;
       socketsByPlayer.set(msg.id, ws);
@@ -223,26 +257,7 @@ wss.on('connection', (ws) => {
 
     if (msg.type === 'leave') {
       if (!room) return;
-      room.players = room.players.filter(p => p.id !== msg.id);
-      delete room.scores[msg.id];
-      socketsByPlayer.delete(msg.id);
-      if (room.players.length === 0) { rooms.delete(room.code); clearAllTimers(room.code); return; }
-      if (room.hostId === msg.id) room.hostId = room.players[0].id;
-      if (room.buzzHolder === msg.id) room.buzzHolder = null;
-      room.voiceOn = (room.voiceOn || []).filter(id => id !== msg.id);
-      broadcastRoom(room);
-      return;
-    }
-
-    if (msg.type === 'voiceStatus') {
-      if (!room) return;
-      room.voiceOn = room.voiceOn || [];
-      if (msg.on) {
-        if (!room.voiceOn.includes(msg.id)) room.voiceOn.push(msg.id);
-      } else {
-        room.voiceOn = room.voiceOn.filter(id => id !== msg.id);
-      }
-      broadcastRoom(room);
+      permanentlyRemove(room.code, msg.id);
       return;
     }
 
@@ -266,10 +281,7 @@ wss.on('connection', (ws) => {
     if (msg.type === 'setWord') {
       if (!room || msg.id !== room.setterId) return;
       const val = (msg.word || '').trim();
-      if (val.length < 3 || !/^[a-zA-Z ]+$/.test(val)) {
-        sendError(ws, 'Use only letters/spaces, at least 3 letters.');
-        return;
-      }
+      if (val.length < 3 || !/^[a-zA-Z ]+$/.test(val)) { sendError(ws, 'Use only letters/spaces, at least 3 letters.'); return; }
       room.currentWord = val.toUpperCase();
       freshRoundState(room);
       room.phase = 'guessing';
@@ -278,10 +290,17 @@ wss.on('connection', (ws) => {
       return;
     }
 
+    if (msg.type === 'giveHint') {
+      if (!room || room.phase !== 'guessing' || msg.id !== room.setterId) return;
+      if (giveHintLetter(room)) broadcastRoom(room);
+      return;
+    }
+
     if (msg.type === 'buzz') {
       if (!room || room.phase !== 'guessing') return;
       if (msg.id === room.setterId) return;
       if (room.buzzHolder) return;
+      if ((room.lockedOut || []).includes(msg.id)) return;
       room.buzzHolder = msg.id;
       startBuzzTimer(room);
       broadcastRoom(room);
@@ -305,17 +324,15 @@ wss.on('connection', (ws) => {
           clearAllTimers(room.code);
           room.phase = checkGameOver(room) ? 'game-over' : 'round-result';
         } else {
-          startBuzzTimer(room); // correct guess refreshes their 20s
+          startBuzzTimer(room);
         }
       } else {
         room.strikes += 1;
+        if (!room.lockedOut.includes(msg.id)) room.lockedOut.push(msg.id);
         room.buzzHolder = null;
         room.buzzDeadline = null;
         clearBuzzTimer(room.code);
-        maybeRevealHint(room);
-        if (room.strikes >= MAX_STRIKES) {
-          loseRoundByStrikeout(room);
-        }
+        if (room.strikes >= MAX_STRIKES) loseRoundByStrikeout(room);
       }
       broadcastRoom(room);
       return;
@@ -336,13 +353,11 @@ wss.on('connection', (ws) => {
         room.phase = checkGameOver(room) ? 'game-over' : 'round-result';
       } else {
         room.strikes += 1;
+        if (!room.lockedOut.includes(msg.id)) room.lockedOut.push(msg.id);
         room.buzzHolder = null;
         room.buzzDeadline = null;
         clearBuzzTimer(room.code);
-        maybeRevealHint(room);
-        if (room.strikes >= MAX_STRIKES) {
-          loseRoundByStrikeout(room);
-        }
+        if (room.strikes >= MAX_STRIKES) loseRoundByStrikeout(room);
       }
       broadcastRoom(room);
       return;
@@ -378,23 +393,27 @@ wss.on('connection', (ws) => {
       }
       return;
     }
+
+    if (msg.type === 'voiceStatus') {
+      if (!room) return;
+      room.voiceOn = room.voiceOn || [];
+      if (msg.on) { if (!room.voiceOn.includes(msg.id)) room.voiceOn.push(msg.id); }
+      else { room.voiceOn = room.voiceOn.filter(id => id !== msg.id); }
+      broadcastRoom(room);
+      return;
+    }
   });
 
   ws.on('close', () => {
-    if (ws.playerId) socketsByPlayer.delete(ws.playerId);
     const room = rooms.get(ws.roomCode);
-    if (room) {
-      room.players = room.players.filter(p => p.id !== ws.playerId);
-      delete room.scores[ws.playerId];
-      if (room.buzzHolder === ws.playerId) room.buzzHolder = null;
-      room.voiceOn = (room.voiceOn || []).filter(id => id !== ws.playerId);
-      if (room.players.length === 0) {
-        rooms.delete(ws.roomCode); clearAllTimers(ws.roomCode);
-      } else {
-        if (room.hostId === ws.playerId) room.hostId = room.players[0].id;
-        broadcastRoom(room);
-      }
-    }
+    if (!room || !ws.playerId) return;
+    const player = room.players.find(p => p.id === ws.playerId);
+    if (!player) return;
+    player.connected = false;
+    if (room.buzzHolder === ws.playerId) { room.buzzHolder = null; room.buzzDeadline = null; clearBuzzTimer(room.code); }
+    broadcastRoom(room);
+    clearDisconnectTimer(ws.playerId);
+    disconnectTimers.set(ws.playerId, setTimeout(() => permanentlyRemove(room.code, ws.playerId), DISCONNECT_GRACE_MS));
   });
 });
 
