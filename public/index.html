@@ -5,121 +5,153 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Chalkboard Hangman — Play Online</title>
 <link rel="manifest" href="/manifest.json">
-<meta name="theme-color" content="#1e2f24">
+<meta name="theme-color" content="#1a1410">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Hangman">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Patrick+Hand&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Patrick+Hand&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --board: #1e2f24; --wood: #6b4226; --wood-light: #8b5e3c; --wood-dark: #4a2c19;
-    --chalk: #f2ede1; --chalk-dim: #cfc9ba; --yellow: #e8c468; --coral: #e2725b; --teal: #7fb8b0; --lilac: #b79fd1;
+    --board: #16241b; --board-2: #1e3327;
+    --wood: #5a3a24; --wood-light: #7a5334; --wood-dark: #3a2413;
+    --chalk: #f4efe4; --chalk-dim: #b9b2a2;
+    --gold: #e8c468; --gold-dim: #9c8452;
+    --coral: #e2725b; --teal: #6fc2b4; --lilac: #b79fd1;
+    --panel: rgba(0,0,0,0.22);
   }
   *{box-sizing:border-box;}
-  html,body{margin:0;padding:0;height:100%;}
+  html,body{margin:0;padding:0;min-height:100%;}
   body{
-    background: radial-gradient(ellipse at 50% 0%, #2a2320 0%, #17130f 70%);
+    background:
+      radial-gradient(1200px 600px at 50% -10%, #241d17 0%, #0d0a08 60%),
+      #0d0a08;
     font-family:'Patrick Hand', cursive; color: var(--chalk);
-    min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px;
+    min-height:100vh; display:flex; align-items:center; justify-content:center; padding:18px;
   }
   .frame{
-    width:100%; max-width:600px;
-    background: linear-gradient(160deg, var(--wood-light), var(--wood) 55%, var(--wood-dark));
-    border-radius:14px; padding:14px;
-    box-shadow: 0 20px 50px rgba(0,0,0,0.55), inset 0 0 0 2px rgba(0,0,0,0.2);
+    width:100%; max-width:620px;
+    background: linear-gradient(155deg, var(--wood-light), var(--wood) 50%, var(--wood-dark));
+    border-radius:18px; padding:12px;
+    box-shadow: 0 30px 70px rgba(0,0,0,0.65), inset 0 0 0 1px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.08);
   }
   .board{
-    background: radial-gradient(circle at 20% 15%, rgba(255,255,255,0.03), transparent 40%),
-      radial-gradient(circle at 80% 85%, rgba(255,255,255,0.025), transparent 45%), var(--board);
-    border-radius:6px; padding:26px 22px 20px;
-    box-shadow: inset 0 0 40px rgba(0,0,0,0.5), inset 0 0 2px rgba(255,255,255,0.05);
-    min-height:440px; display:flex; flex-direction:column;
+    position:relative; overflow:hidden;
+    background:
+      radial-gradient(circle at 15% 10%, rgba(255,255,255,0.035), transparent 42%),
+      radial-gradient(circle at 85% 90%, rgba(255,255,255,0.03), transparent 48%),
+      linear-gradient(160deg, var(--board-2), var(--board) 70%);
+    border-radius:10px; padding:28px 22px 22px;
+    box-shadow: inset 0 0 60px rgba(0,0,0,0.55), inset 0 0 2px rgba(255,255,255,0.06);
+    min-height:460px; display:flex; flex-direction:column;
   }
-  h1.title{ font-family:'Kalam', cursive; font-weight:700; font-size:1.7rem; text-align:center; margin:0 0 2px; text-shadow: 0 0 8px rgba(242,237,225,0.25); }
-  .subtitle{ text-align:center; color:var(--chalk-dim); font-size:1rem; margin:0 0 16px; }
-  .roomtag{ text-align:center; font-family:'Kalam',cursive; font-size:0.95rem; color:var(--yellow); margin-bottom:10px; letter-spacing:1px; }
+  h1.title{
+    font-family:'Kalam', cursive; font-weight:700; font-size:1.85rem; text-align:center;
+    margin:0 0 2px; letter-spacing:0.3px;
+  }
+  @keyframes titleGlow{ 0%,100%{ text-shadow: 0 0 10px rgba(244,239,228,0.22);} 50%{ text-shadow: 0 0 22px rgba(232,196,104,0.5);} }
+  h1.title{ animation: titleGlow 4.5s ease-in-out infinite; }
+  .flourish{ text-align:center; opacity:0.5; margin:-2px 0 10px; font-size:0.85rem; letter-spacing:5px; color: var(--gold-dim); }
+  .subtitle{ text-align:center; color:var(--chalk-dim); font-size:0.98rem; margin:0 0 14px; }
+  .roomtag{ text-align:center; font-family:'JetBrains Mono', monospace; font-weight:700; font-size:0.85rem; color:var(--gold); margin-bottom:8px; letter-spacing:2px; }
+  .connbar{ text-align:center; font-size:0.75rem; margin-bottom:6px; letter-spacing:0.5px; }
+  .conn-ok{ color: var(--teal); } .conn-bad{ color: var(--coral); }
   .screen{ flex:1; display:flex; flex-direction:column; justify-content:center; gap:14px; }
-  .row{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+  @keyframes fadeInUp{ from{ opacity:0; transform: translateY(8px);} to{ opacity:1; transform: translateY(0);} }
+  .screen.fade-in{ animation: fadeInUp 0.32s ease; }
+  .row{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; align-items:center; }
+
   button{
-    font-family:'Patrick Hand', cursive; font-size:1.1rem; background:transparent; border:2px solid var(--chalk);
-    color:var(--chalk); padding:10px 18px; border-radius:8px; cursor:pointer; transition: transform 0.08s ease, background 0.15s ease;
+    font-family:'Patrick Hand', cursive; font-size:1.08rem; background: rgba(244,239,228,0.04);
+    border:2px solid rgba(244,239,228,0.65); color: var(--chalk); padding:10px 18px; border-radius:10px;
+    cursor:pointer; transition: transform 0.1s ease, background 0.15s ease, box-shadow 0.15s ease;
+    box-shadow: 0 2px 0 rgba(0,0,0,0.25);
   }
-  button:hover:not(:disabled){ background: rgba(242,237,225,0.12); transform: translateY(-1px); }
-  button:active:not(:disabled){ transform: translateY(0px) scale(0.97); }
-  button:disabled{ opacity:0.3; cursor:default; }
-  button.primary{ border-color: var(--yellow); color: var(--yellow); font-weight:bold; }
-  button.primary:hover:not(:disabled){ background: rgba(232,196,104,0.15); }
+  button:hover:not(:disabled){ background: rgba(244,239,228,0.1); transform: translateY(-1px); }
+  button:active:not(:disabled){ transform: translateY(1px); box-shadow:none; }
+  button:disabled{ opacity:0.32; cursor:default; }
+  button.primary{ border-color: var(--gold); color: var(--gold); font-weight:bold; box-shadow: 0 2px 0 rgba(0,0,0,0.25), 0 0 14px rgba(232,196,104,0.08); }
+  button.primary:hover:not(:disabled){ background: rgba(232,196,104,0.14); }
   button.danger{ border-color: var(--coral); color: var(--coral); }
-  button.big-buzz{ font-size:1.4rem; padding:16px 30px; border-width:3px; }
+  button.ghost{ background:transparent; border-color: rgba(244,239,228,0.3); color: var(--chalk-dim); }
+  button.tab{ flex:1; border-radius:10px 10px 0 0; border-bottom:none; }
+  button.tab.active{ background: var(--panel); border-color: var(--gold); color: var(--gold); }
+  @keyframes buzzPulse{ 0%,100%{ box-shadow: 0 2px 0 rgba(0,0,0,0.25), 0 0 0 0 rgba(232,196,104,0.5);} 50%{ box-shadow: 0 2px 0 rgba(0,0,0,0.25), 0 0 0 14px rgba(232,196,104,0);} }
+  button.big-buzz{ font-size:1.35rem; padding:16px 30px; border-width:3px; animation: buzzPulse 1.7s ease-in-out infinite; }
+
   input[type=text]{
-    font-family:'Patrick Hand', cursive; font-size:1.15rem; background: rgba(242,237,225,0.06); border:none;
-    border-bottom:2px dashed var(--chalk-dim); color:var(--chalk); padding:8px 6px; outline:none; width:100%;
-    text-align:center; letter-spacing:1px;
+    font-family:'Patrick Hand', cursive; font-size:1.12rem; background: rgba(0,0,0,0.2); border:1px solid rgba(244,239,228,0.2);
+    border-bottom:2px solid var(--chalk-dim); color: var(--chalk); padding:10px 8px; outline:none; width:100%;
+    text-align:center; letter-spacing:0.5px; border-radius:8px;
   }
-  input[type=text]::placeholder{ color:rgba(242,237,225,0.4); }
-  .stack{ display:flex; flex-direction:column; gap:12px; max-width:340px; margin:0 auto; width:100%; }
-  .hint{ text-align:center; color:var(--chalk-dim); font-size:0.92rem; margin-top:-4px; }
-  .center-text{ text-align:center; font-size:1.1rem; }
-  .big-name{ font-family:'Kalam', cursive; font-weight:700; font-size:1.5rem; }
-  .code-display{ text-align:center; font-family:'Kalam',cursive; font-weight:700; font-size:2.2rem; letter-spacing:6px; color:var(--yellow); margin:6px 0; }
+  input[type=text]:focus{ border-color: var(--gold); }
+  input[type=text]::placeholder{ color: rgba(244,239,228,0.35); }
+
+  .panel{ background: var(--panel); border:1px solid rgba(244,239,228,0.08); border-radius:12px; padding:18px 16px; }
+  .stack{ display:flex; flex-direction:column; gap:12px; max-width:360px; margin:0 auto; width:100%; }
+  .hint{ text-align:center; color:var(--chalk-dim); font-size:0.9rem; margin-top:-4px; }
+  .center-text{ text-align:center; font-size:1.08rem; }
+  .big-name{ font-family:'Kalam', cursive; font-weight:700; font-size:1.45rem; color: var(--gold); }
+  .code-display{
+    text-align:center; font-family:'JetBrains Mono', monospace; font-weight:700; font-size:2.3rem;
+    letter-spacing:8px; color: var(--gold); margin:6px 0; text-shadow: 0 0 18px rgba(232,196,104,0.35);
+  }
+
   svg.gallows{ display:block; margin:0 auto; }
   .gallows line, .gallows circle{ stroke: var(--chalk); stroke-width:4; fill:none; stroke-linecap:round; }
   .gallows .base{ stroke: var(--chalk-dim); }
+
   .word-row{ display:flex; gap:7px; justify-content:center; flex-wrap:wrap; margin:12px 0 8px; }
-  .letter-box{ min-width:24px; border-bottom:3px solid var(--chalk-dim); text-align:center; font-family:'Kalam', cursive; font-size:1.5rem; font-weight:700; padding:0 3px; }
+  .letter-box{ min-width:24px; border-bottom:3px solid var(--chalk-dim); text-align:center; font-family:'Kalam', cursive; font-size:1.55rem; font-weight:700; padding:0 3px; }
   .letter-box.hinted{ color: var(--lilac); }
-  .status-row{ display:flex; justify-content:space-between; align-items:center; font-size:0.95rem; color:var(--chalk-dim); margin-bottom:2px; flex-wrap:wrap; gap:6px; }
-  .turn-flag{ font-family:'Kalam',cursive; font-weight:700; color: var(--yellow); }
-  .used-letters{ text-align:center; font-size:0.85rem; color:var(--chalk-dim); min-height:1.2em; }
-  .players-list{ display:flex; flex-direction:column; gap:6px; max-width:320px; margin:0 auto; width:100%; }
-  .player-chip{ display:flex; align-items:center; gap:8px; font-size:1.05rem; padding:4px 8px; border-radius:6px; background:rgba(242,237,225,0.05); }
-  .dot{ width:12px; height:12px; border-radius:50%; flex-shrink:0; }
-  .scorebar{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; font-size:0.85rem; color:var(--chalk-dim); margin-top:14px; border-top:1px dashed rgba(242,237,225,0.15); padding-top:10px; }
-  .scorebar .pts{ color:var(--yellow); font-weight:bold; }
-  .result-banner{ text-align:center; font-family:'Kalam',cursive; font-weight:700; font-size:1.4rem; margin-bottom:4px; }
+
+  .status-row{ display:flex; justify-content:space-between; align-items:center; font-size:0.92rem; color:var(--chalk-dim); margin-bottom:2px; flex-wrap:wrap; gap:6px; }
+  .used-letters{ text-align:center; font-size:0.82rem; color:var(--chalk-dim); min-height:1.2em; }
+
+  .keyboard{ display:grid; grid-template-columns: repeat(7, 1fr); gap:7px; max-width:420px; margin:10px auto 0; }
+  .keyboard button{ padding:10px 0; font-size:1.05rem; border-width:2px; border-radius:8px; font-family:'Kalam', cursive; font-weight:700; }
+  .keyboard button.used-good{ border-color: var(--teal); color: var(--teal); background: rgba(111,194,180,0.12); box-shadow:none; }
+  .keyboard button.used-bad{ border-color: var(--coral); color: var(--coral); background: rgba(226,114,91,0.1); opacity:0.55; box-shadow:none; }
+
+  .players-list{ display:flex; flex-direction:column; gap:6px; max-width:340px; margin:0 auto; width:100%; }
+  .player-chip{ display:flex; align-items:center; gap:8px; font-size:1.02rem; padding:6px 10px; border-radius:8px; background: rgba(244,239,228,0.04); }
+  .player-chip.offline{ opacity:0.45; }
+  .dot{ width:11px; height:11px; border-radius:50%; flex-shrink:0; }
+
+  .score-chip-row{ display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:14px; padding-top:12px; border-top:1px dashed rgba(244,239,228,0.14); }
+  .score-chip{ display:flex; align-items:center; gap:6px; padding:5px 11px; border-radius:999px; background: rgba(244,239,228,0.05); font-size:0.84rem; border:1px solid rgba(244,239,228,0.12); }
+  .score-chip .dot{ width:9px; height:9px; }
+  .score-chip .pts{ color: var(--gold); font-weight:bold; font-family:'JetBrains Mono', monospace; }
+
+  .timer-ring{ text-align:center; font-family:'JetBrains Mono', monospace; font-weight:700; font-size:1.4rem; margin:4px 0; letter-spacing:1px; }
+  .timer-ring.normal{ color: var(--teal); }
+  .timer-ring.warn{ color: var(--coral); animation: buzzPulse2 1s ease-in-out infinite; }
+  @keyframes buzzPulse2{ 0%,100%{ opacity:1;} 50%{ opacity:0.55;} }
+  .round-timer{ text-align:center; font-family:'JetBrains Mono', monospace; font-size:0.8rem; color: var(--chalk-dim); margin-bottom:8px; letter-spacing:1px; }
+  .round-timer.warn{ color: var(--coral); }
+
+  .result-banner{ text-align:center; font-family:'Kalam',cursive; font-weight:700; font-size:1.42rem; margin-bottom:4px; }
   .win{ color: var(--teal); } .lose{ color: var(--coral); }
   .spinner-dots::after{ content:'...'; }
-  .error-text{ text-align:center; color:var(--coral); font-size:0.95rem; min-height:1.2em; }
-  .privacy-note{ text-align:center; color:var(--chalk-dim); font-size:0.78rem; margin-top:10px; opacity:0.8; }
-  .connbar{ text-align:center; font-size:0.8rem; margin-bottom:8px; }
-  .conn-ok{ color: var(--teal); } .conn-bad{ color: var(--coral); }
-  .keyboard{ display:grid; grid-template-columns: repeat(7, 1fr); gap:7px; max-width:420px; margin:10px auto 0; }
-  .keyboard button{
-    padding:10px 0; font-size:1.05rem; border-width:2px; border-radius:8px;
-    font-family:'Kalam', cursive; font-weight:700;
-    box-shadow: 0 2px 0 rgba(242,237,225,0.15);
-  }
-  .keyboard button.used-good{ border-color: var(--teal); color: var(--teal); background: rgba(127,184,176,0.12); box-shadow:none; }
-  .keyboard button.used-bad{ border-color: var(--coral); color: var(--coral); background: rgba(226,114,91,0.1); opacity:0.6; box-shadow:none; }
-  .score-table{ max-width:340px; margin:0 auto; width:100%; }
-  .score-table-row{ display:flex; justify-content:space-between; padding:8px 6px; border-bottom:1px dashed rgba(242,237,225,0.15); font-size:1.1rem; }
-  .score-table-row.first{ color: var(--yellow); font-family:'Kalam',cursive; font-weight:700; }
-  .leave-bar{ position:absolute; top:10px; right:10px; }
-  .leave-bar button{ font-size:0.8rem; padding:4px 10px; border-width:1.5px; }
+  .error-text{ text-align:center; color:var(--coral); font-size:0.92rem; min-height:1.2em; }
+  .privacy-note{ text-align:center; color:var(--chalk-dim); font-size:0.75rem; margin-top:10px; opacity:0.75; }
 
-  /* --- visual polish --- */
-  @keyframes titleGlow{ 0%,100%{ text-shadow: 0 0 8px rgba(242,237,225,0.25);} 50%{ text-shadow: 0 0 18px rgba(232,196,104,0.45);} }
-  h1.title{ animation: titleGlow 4s ease-in-out infinite; }
-  @keyframes fadeInUp{ from{ opacity:0; transform: translateY(6px);} to{ opacity:1; transform: translateY(0);} }
-  .screen.fade-in{ animation: fadeInUp 0.35s ease; }
-  .dust{ position:absolute; border-radius:50%; background: rgba(242,237,225,0.5); pointer-events:none; }
-  .board{ position:relative; overflow:hidden; }
-  @keyframes floatDust{ 0%{ transform: translateY(0) translateX(0); opacity:0.5;} 50%{ opacity:0.9;} 100%{ transform: translateY(-14px) translateX(6px); opacity:0.3;} }
-  @keyframes buzzPulse{ 0%,100%{ box-shadow: 0 0 0 0 rgba(232,196,104,0.5);} 50%{ box-shadow: 0 0 0 12px rgba(232,196,104,0);} }
-  button.big-buzz{ animation: buzzPulse 1.6s ease-in-out infinite; }
-  .score-chip-row{ display:flex; gap:8px; justify-content:center; flex-wrap:wrap; margin-top:14px; padding-top:12px; border-top:1px dashed rgba(242,237,225,0.15); }
-  .score-chip{ display:flex; align-items:center; gap:6px; padding:5px 10px; border-radius:999px; background: rgba(242,237,225,0.06); font-size:0.85rem; border:1px solid rgba(242,237,225,0.12); }
-  .score-chip .dot{ width:9px; height:9px; border-radius:50%; }
-  .score-chip .pts{ color: var(--yellow); font-weight:bold; }
-  .timer-ring{ text-align:center; font-family:'Kalam',cursive; font-weight:700; font-size:1.3rem; margin:4px 0; }
-  .timer-ring.warn{ color: var(--coral); animation: buzzPulse 1s ease-in-out infinite; }
-  .timer-ring.normal{ color: var(--teal); }
-  .round-timer{ text-align:center; font-size:0.82rem; color: var(--chalk-dim); margin-bottom:6px; }
-  .round-timer.warn{ color: var(--coral); }
-  .flourish{ text-align:center; opacity:0.55; margin:-4px 0 12px; font-size:0.9rem; letter-spacing:4px; color: var(--chalk-dim); }
-  .confetti-emoji{ font-size:2rem; text-align:center; }
+  .score-table{ max-width:340px; margin:0 auto; width:100%; }
+  .score-table-row{ display:flex; justify-content:space-between; padding:9px 8px; border-bottom:1px dashed rgba(244,239,228,0.14); font-size:1.08rem; }
+  .score-table-row.first{ color: var(--gold); font-family:'Kalam',cursive; font-weight:700; background: rgba(232,196,104,0.06); border-radius:6px; }
+  .confetti-emoji{ font-size:2.1rem; text-align:center; }
+
+  .leave-bar{ position:absolute; top:10px; right:10px; z-index:5; }
+  .leave-bar button{ font-size:0.78rem; padding:4px 10px; border-width:1.5px; }
+  .install-bar{ text-align:center; margin-bottom:10px; }
+  .install-bar button{ font-size:0.85rem; padding:6px 14px; }
+
+  .dust{ position:absolute; border-radius:50%; background: rgba(244,239,228,0.45); pointer-events:none; }
+  @keyframes floatDust{ 0%{ transform: translateY(0) translateX(0); opacity:0.5;} 50%{ opacity:0.85;} 100%{ transform: translateY(-16px) translateX(7px); opacity:0.25;} }
+
+  .rejoin-banner{ text-align:center; background: rgba(232,196,104,0.08); border:1px dashed var(--gold-dim); border-radius:10px; padding:10px; margin-bottom:6px; }
+  .lockout-note{ text-align:center; color: var(--coral); font-size:0.85rem; }
 </style>
 </head>
 <body>
@@ -128,6 +160,7 @@
     <div class="leave-bar" id="leaveBar"></div>
     <h1 class="title">Chalkboard Hangman</h1>
     <div class="flourish">✦ ⋆ ✦</div>
+    <div class="install-bar" id="installBar"></div>
     <div class="connbar" id="connbar"></div>
     <div class="roomtag" id="roomtag"></div>
     <div class="subtitle" id="subtitle">Play with friends on different phones</div>
@@ -137,7 +170,7 @@
 </div>
 
 <script>
-const PALETTE = ['#e8c468', '#7fb8b0', '#e2725b', '#b79fd1', '#8fbf6a', '#e89ac0', '#7aa5d1', '#d1a05a'];
+const PALETTE = ['#e8c468', '#6fc2b4', '#e2725b', '#b79fd1', '#8fbf6a', '#e89ac0', '#7aa5d1', '#d1a05a'];
 const MAX_STRIKES = 6;
 const ICE_SERVERS = [
   {urls:'stun:stun.l.google.com:19302'},
@@ -155,13 +188,19 @@ function escapeHtml(str){
   return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 
-const myId = randomId();
-let myName = '';
+// ---------- persistent identity so a refresh/disconnect can rejoin the same seat ----------
+const LS_ID = 'hangman_player_id', LS_NAME = 'hangman_player_name', LS_ROOM = 'hangman_last_room';
+let myId = localStorage.getItem(LS_ID);
+if(!myId){ myId = randomId(); localStorage.setItem(LS_ID, myId); }
+let myName = localStorage.getItem(LS_NAME) || '';
+let lastRoomCode = localStorage.getItem(LS_ROOM) || '';
+
 let room = null;
 let joinError = '';
 let wordError = '';
 let connected = false;
 let ws = null;
+let homeTab = lastRoomCode ? 'join' : 'create';
 
 let micOn = false, localStream = null, micStatus = 'off';
 const peerConns = {}, remoteAudios = {};
@@ -171,6 +210,7 @@ const subtitleEl = document.getElementById('subtitle');
 const roomtagEl = document.getElementById('roomtag');
 const connbarEl = document.getElementById('connbar');
 const leaveBarEl = document.getElementById('leaveBar');
+const installBarEl = document.getElementById('installBar');
 
 function el(tag, opts={}, children=[]){
   const e = document.createElement(tag);
@@ -187,7 +227,14 @@ function el(tag, opts={}, children=[]){
 function connectWS(){
   const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
   ws = new WebSocket(proto + location.host);
-  ws.onopen = () => { connected = true; render(); };
+  ws.onopen = () => {
+    connected = true;
+    // auto-rejoin our seat if we were mid-game before a drop/refresh
+    if(lastRoomCode && myName){
+      send({type:'join', id: myId, name: myName, code: lastRoomCode});
+    }
+    render();
+  };
   ws.onclose = () => { connected = false; render(); setTimeout(connectWS, 2000); };
   ws.onerror = () => { connected = false; };
   ws.onmessage = (evt) => {
@@ -196,6 +243,8 @@ function connectWS(){
     if(msg.type === 'room'){
       room = msg.room;
       joinError = '';
+      localStorage.setItem(LS_ROOM, room.code);
+      lastRoomCode = room.code;
       connectToAllPeers();
       render();
     } else if(msg.type === 'error'){
@@ -214,6 +263,8 @@ function playerColor(id){ if(!room) return '#fff'; const idx = room.players.find
 function leaveRoom(){
   send({type:'leave', id: myId});
   room = null;
+  localStorage.removeItem(LS_ROOM);
+  lastRoomCode = '';
   micOn = false;
   if(localStream){ localStream.getTracks().forEach(t=>t.stop()); localStream=null; }
   for(const id in peerConns){ peerConns[id].close(); delete peerConns[id]; }
@@ -250,49 +301,13 @@ function retriggerFadeIn(){
   void screenEl.offsetWidth;
   screenEl.classList.add('fade-in');
 }
-
-// ---------- decorative chalk dust ----------
-const dustLayerEl = document.getElementById('dustLayer');
-function spawnDust(){
-  if(!dustLayerEl) return;
-  const n = document.createElement('div');
-  n.className = 'dust';
-  const size = 2 + Math.random()*3;
-  n.style.width = size + 'px';
-  n.style.height = size + 'px';
-  n.style.left = Math.random()*100 + '%';
-  n.style.top = Math.random()*100 + '%';
-  n.style.animation = 'floatDust ' + (3 + Math.random()*2) + 's ease-in-out forwards';
-  dustLayerEl.appendChild(n);
-  setTimeout(() => n.remove(), 5500);
-}
-setInterval(spawnDust, 700);
-
-// ---------- live countdown ticking (updates text only, doesn't disturb inputs) ----------
-setInterval(() => {
-  if(!room || room.phase !== 'guessing') return;
-  const roundEl = document.getElementById('roundTimerText');
-  if(roundEl && room.roundDeadline){
-    const remain = Math.max(0, Math.round((room.roundDeadline - Date.now())/1000));
-    const mm = Math.floor(remain/60), ss = remain%60;
-    roundEl.textContent = 'Round time left: ' + mm + ':' + String(ss).padStart(2,'0');
-    roundEl.parentElement.classList.toggle('warn', remain <= 20);
-  }
-  const buzzEl = document.getElementById('buzzTimerText');
-  if(buzzEl && room.buzzDeadline){
-    const remain = Math.max(0, Math.round((room.buzzDeadline - Date.now())/1000));
-    buzzEl.textContent = remain + 's to answer';
-    buzzEl.parentElement.classList.toggle('warn', remain <= 5);
-    buzzEl.parentElement.classList.toggle('normal', remain > 5);
-  }
-}, 1000);
 function subtitleFor(phase){
   switch(phase){
     case 'lobby': return 'Waiting in the lobby';
     case 'word-entry': return 'Setting the secret word';
     case 'guessing': return 'Buzz in to guess';
     case 'round-result': return 'Round over';
-    case 'game-over': return 'Game over — 50 points reached!';
+    case 'game-over': return 'Game over!';
   }
   return '';
 }
@@ -302,41 +317,93 @@ function renderScorebar(root){
   room.players.forEach((p,i) => {
     bar.appendChild(el('div', {class:'score-chip'}, [
       el('span', {class:'dot', style:{background: colorFor(i)}}),
-      el('span', {text: p.name}),
+      el('span', {text: p.name + (p.connected===false ? ' (offline)' : '')}),
       el('span', {class:'pts', text: (room.scores[p.id]||0) + '/' + (room.targetScore || 50)})
     ]));
   });
   root.appendChild(bar);
 }
 
-// ---------- HOME ----------
+// ---------- decorative chalk dust ----------
+const dustLayerEl = document.getElementById('dustLayer');
+function spawnDust(){
+  if(!dustLayerEl) return;
+  const n = document.createElement('div');
+  n.className = 'dust';
+  const size = 2 + Math.random()*3;
+  n.style.width = size + 'px'; n.style.height = size + 'px';
+  n.style.left = Math.random()*100 + '%'; n.style.top = Math.random()*100 + '%';
+  n.style.animation = 'floatDust ' + (3 + Math.random()*2) + 's ease-in-out forwards';
+  dustLayerEl.appendChild(n);
+  setTimeout(() => n.remove(), 5500);
+}
+setInterval(spawnDust, 700);
+
+// ---------- live countdown ticking (text-only updates, won't disturb focused inputs) ----------
+setInterval(() => {
+  if(!room || room.phase !== 'guessing') return;
+  const roundEl = document.getElementById('roundTimerText');
+  if(roundEl && room.roundDeadline){
+    const remain = Math.max(0, Math.round((room.roundDeadline - Date.now())/1000));
+    const mm = Math.floor(remain/60), ss = remain%60;
+    roundEl.textContent = 'ROUND ' + mm + ':' + String(ss).padStart(2,'0');
+    roundEl.parentElement.classList.toggle('warn', remain <= 20);
+  }
+  const buzzEl = document.getElementById('buzzTimerText');
+  if(buzzEl && room.buzzDeadline){
+    const remain = Math.max(0, Math.round((room.buzzDeadline - Date.now())/1000));
+    buzzEl.textContent = String(remain).padStart(2,'0') + 's';
+    buzzEl.parentElement.classList.toggle('warn', remain <= 5);
+    buzzEl.parentElement.classList.toggle('normal', remain > 5);
+  }
+}, 1000);
+
+// ---------- HOME (tabbed create / join) ----------
 function renderHome(root){
-  const stack = el('div', {class:'stack'});
+  if(lastRoomCode){
+    root.appendChild(el('div', {class:'rejoin-banner'}, [
+      el('div', {class:'hint', text:'Looks like you were in room ' + lastRoomCode + ' before.', style:{marginTop:'0'}}),
+      el('button', {class:'primary', text:'Rejoin ' + lastRoomCode, style:{marginTop:'8px'}, onclick: () => {
+        if(!myName.trim()){ joinError = 'Enter your name first.'; render(); return; }
+        send({type:'join', id: myId, name: myName.trim(), code: lastRoomCode});
+      }})
+    ]));
+  }
+
   const nameInput = el('input', {attrs:{type:'text', placeholder:'Your name', maxlength:'16'}});
   nameInput.value = myName;
-  nameInput.addEventListener('input', e => myName = e.target.value);
+  nameInput.addEventListener('input', e => { myName = e.target.value; localStorage.setItem(LS_NAME, myName); });
+
+  const tabs = el('div', {class:'row', style:{gap:'0'}}, [
+    el('button', {class:'tab' + (homeTab==='create'?' active':''), text:'Create Room', onclick: () => { homeTab='create'; render(); }}),
+    el('button', {class:'tab' + (homeTab==='join'?' active':''), text:'Join Room', onclick: () => { homeTab='join'; render(); }}),
+  ]);
+  root.appendChild(tabs);
+
+  const panel = el('div', {class:'panel'});
+  const stack = el('div', {class:'stack'});
   stack.appendChild(nameInput);
 
-  stack.appendChild(el('button', {class:'primary', text:'Create a new room', onclick: () => {
-    if(!myName.trim()){ joinError = 'Enter your name first.'; render(); return; }
-    send({type:'create', id: myId, name: myName.trim()});
-  }}));
+  if(homeTab === 'create'){
+    stack.appendChild(el('button', {class:'primary', text:'Create a new room', onclick: () => {
+      if(!myName.trim()){ joinError = 'Enter your name first.'; render(); return; }
+      send({type:'create', id: myId, name: myName.trim()});
+    }}));
+  } else {
+    const codeInput = el('input', {attrs:{type:'text', placeholder:'Room code', maxlength:'4', style:'text-transform:uppercase'}});
+    stack.appendChild(codeInput);
+    stack.appendChild(el('button', {class:'primary', text:'Join', onclick: () => {
+      if(!myName.trim()){ joinError = 'Enter your name first.'; render(); return; }
+      const code = codeInput.value.trim().toUpperCase();
+      if(code.length !== 4){ joinError = 'Enter the 4-letter room code.'; render(); return; }
+      send({type:'join', id: myId, name: myName.trim(), code});
+    }}));
+  }
+  panel.appendChild(stack);
+  root.appendChild(panel);
 
-  const codeRow = el('div', {class:'row'});
-  const codeInput = el('input', {attrs:{type:'text', placeholder:'Room code', maxlength:'4', style:'text-transform:uppercase'}});
-  codeRow.appendChild(codeInput);
-  stack.appendChild(codeRow);
-
-  stack.appendChild(el('button', {text:'Join a room', onclick: () => {
-    if(!myName.trim()){ joinError = 'Enter your name first.'; render(); return; }
-    const code = codeInput.value.trim().toUpperCase();
-    if(code.length !== 4){ joinError = 'Enter the 4-letter room code.'; render(); return; }
-    send({type:'join', id: myId, name: myName.trim(), code});
-  }}));
-
-  root.appendChild(stack);
   root.appendChild(el('div', {class:'error-text', text: joinError}));
-  root.appendChild(el('div', {class:'privacy-note', text:'Everyone needs this same web link. First to 50 points wins the game.'}));
+  root.appendChild(el('div', {class:'privacy-note', text:'If you get disconnected mid-game, just reopen this page — you\'ll rejoin your seat automatically for 2 minutes.'}));
 }
 
 // ---------- LOBBY ----------
@@ -345,15 +412,15 @@ function renderLobby(root){
   root.appendChild(el('div', {class:'hint', text:'Share this code so friends can join from their phones.'}));
   const list = el('div', {class:'players-list'});
   room.players.forEach((p,i) => {
-    list.appendChild(el('div', {class:'player-chip'}, [
+    list.appendChild(el('div', {class:'player-chip' + (p.connected===false?' offline':'')}, [
       el('span', {class:'dot', style:{background: colorFor(i)}}),
-      el('span', {text: p.name + (p.id === room.hostId ? '  (host)' : '')})
+      el('span', {text: p.name + (p.id === room.hostId ? '  (host)' : '') + (p.connected===false?' — offline':'')})
     ]));
   });
   root.appendChild(list);
 
   if(myId === room.hostId){
-    const scoreRow = el('div', {class:'row', style:{alignItems:'center'}});
+    const scoreRow = el('div', {class:'row'});
     scoreRow.appendChild(el('span', {class:'hint', text:'Winning score:', style:{marginTop:'0'}}));
     const scoreInput = el('input', {attrs:{type:'text', inputmode:'numeric', maxlength:'3', style:'max-width:80px;'}});
     scoreInput.value = room.targetScore || 50;
@@ -364,17 +431,14 @@ function renderLobby(root){
       send({type:'setTargetScore', id: myId, value: val});
     }}));
     root.appendChild(scoreRow);
-  } else {
-    root.appendChild(el('div', {class:'hint', text:'First to ' + (room.targetScore || 50) + ' points wins.'}));
-  }
 
-  if(myId === room.hostId){
     const canStart = room.players.length >= 2;
     root.appendChild(el('div', {class:'row'}, [
       el('button', {class:'primary', text: canStart ? 'Start game — you give the first word' : 'Need at least 2 players', onclick: () => { if(canStart) send({type:'start', id: myId}); }})
     ]));
     if(!canStart) root.appendChild(el('div', {class:'hint', text:'Waiting for more players to join...'}));
   } else {
+    root.appendChild(el('div', {class:'hint', text:'First to ' + (room.targetScore || 50) + ' points wins.'}));
     root.appendChild(el('div', {class:'hint spinner-dots', text:'Waiting for the host to start the game'}));
   }
 }
@@ -403,9 +467,9 @@ function renderWordEntry(root){
   renderScorebar(root);
 }
 
-// ---------- GUESSING (buzzer + native input) ----------
+// ---------- GUESSING (buzzer, lockout, manual hint from setter) ----------
 function renderGuessing(root){
-  root.appendChild(el('div', {class:'round-timer', attrs:{id:'roundTimerText'}, text:'Round time left: 2:00'}));
+  root.appendChild(el('div', {class:'round-timer', attrs:{id:'roundTimerText'}, text:'ROUND 2:00'}));
   root.appendChild(buildGallows(room.strikes));
 
   const wordRow = el('div', {class:'word-row'});
@@ -419,23 +483,29 @@ function renderGuessing(root){
 
   const statusRow = el('div', {class:'status-row'});
   statusRow.appendChild(el('span', {text: 'Strikes: ' + room.strikes + ' / ' + MAX_STRIKES}));
-  statusRow.appendChild(el('span', {text: 'Hints given: ' + room.hints.length + ' / 2'}));
+  statusRow.appendChild(el('span', {text: 'Hints used: ' + room.hints.length + ' / 2'}));
   root.appendChild(statusRow);
 
   const wrongLetters = room.guessed.filter(l => !room.currentWord.includes(l));
-  if(wrongLetters.length){
-    root.appendChild(el('div', {class:'used-letters', text: 'Already tried: ' + wrongLetters.join(', ')}));
-  }
+  if(wrongLetters.length) root.appendChild(el('div', {class:'used-letters', text: 'Already tried: ' + wrongLetters.join(', ')}));
 
   if(myId === room.setterId){
     root.appendChild(el('div', {class:'hint', text:'Watching the group guess your word...'}));
+    const uniqueLetters = new Set(room.currentWord.replace(/ /g,'').split(''));
+    const eligible = uniqueLetters.size > 4 && room.hints.length < 2;
+    root.appendChild(el('div', {class:'row'}, [
+      el('button', {class: eligible ? '' : 'ghost', text: '💡 Give a hint (' + room.hints.length + '/2 used)', onclick: () => { if(eligible) send({type:'giveHint', id: myId}); }, attrs: eligible ? {} : {disabled:'disabled'}})
+    ]));
+    if(uniqueLetters.size <= 4) root.appendChild(el('div', {class:'hint', text:'Hints aren\'t available for short words.'}));
+  } else if((room.lockedOut||[]).includes(myId)){
+    root.appendChild(el('div', {class:'lockout-note', text:'You guessed wrong this round — wait for someone else to try.'}));
   } else if(!room.buzzHolder){
     root.appendChild(el('div', {class:'row', style:{marginTop:'10px'}}, [
       el('button', {class:'primary big-buzz', text:'🔔 Buzz In', onclick: () => send({type:'buzz', id: myId})})
     ]));
     root.appendChild(el('div', {class:'hint', text:'Buzzer is open — first to tap gets to guess.'}));
   } else if(room.buzzHolder === myId){
-    root.appendChild(el('div', {class:'timer-ring normal', attrs:{id:'buzzTimerText'}, text:'20s to answer'}));
+    root.appendChild(el('div', {class:'timer-ring normal', attrs:{id:'buzzTimerText'}, text:'20s'}));
     root.appendChild(el('div', {class:'center-text', text:'You have the buzzer! Tap a letter, or guess the whole word.'}));
 
     const keyboard = el('div', {class:'keyboard'});
@@ -459,7 +529,7 @@ function renderGuessing(root){
       }})
     ]));
   } else {
-    root.appendChild(el('div', {class:'center-text', html:'<span class="turn-flag" style="color:'+playerColor(room.buzzHolder)+'">'+escapeHtml(playerName(room.buzzHolder))+'</span> has the buzzer'}));
+    root.appendChild(el('div', {class:'center-text', html:'<span class="big-name" style="color:'+playerColor(room.buzzHolder)+'">'+escapeHtml(playerName(room.buzzHolder))+'</span> has the buzzer'}));
     root.appendChild(el('div', {class:'hint', text:'Wait for their guess before you can buzz in.'}));
   }
   renderScorebar(root);
@@ -468,7 +538,7 @@ function renderGuessing(root){
 // ---------- ROUND RESULT ----------
 function renderRoundResult(root){
   const r = room.roundResult;
-  root.appendChild(el('div', {class:'result-banner ' + (r.won?'win':'lose'), text: r.won ? 'The word was guessed!' : 'Out of chalk!'}));
+  root.appendChild(el('div', {class:'result-banner ' + (r.won?'win':'lose'), text: r.won ? 'The word was guessed!' : 'Round over!'}));
   root.appendChild(el('div', {class:'center-text', html:'The word was: <span class="big-name">'+escapeHtml(room.currentWord)+'</span>'}));
   root.appendChild(el('div', {class:'hint', text: r.note}));
   if(myId === room.setterId){
@@ -563,7 +633,7 @@ async function connectToAllPeers(){
   const voiceOn = room.voiceOn || [];
   for(const p of room.players){
     if(p.id === myId) continue;
-    if(!voiceOn.includes(p.id)) continue; // only connect once they've turned their mic on too
+    if(!voiceOn.includes(p.id)) continue;
     if(peerConns[p.id]) continue;
     micStatus = 'connecting';
     await ensurePeerConnection(p.id, myId < p.id);
@@ -629,40 +699,27 @@ let deferredInstallPrompt = null;
 window.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredInstallPrompt = e;
-  const btn = document.getElementById('installBtn');
-  if(btn) btn.style.display = 'inline-block';
+  showInstallButtonIfNeeded();
 });
 function showInstallButtonIfNeeded(){
   const already = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  installBarEl.innerHTML = '';
   if(already) return;
-  let btn = document.getElementById('installBtn');
-  if(!btn){
-    btn = document.createElement('button');
-    btn.id = 'installBtn';
-    btn.textContent = '⬇ Install App';
-    btn.style.display = 'none';
-    btn.style.margin = '0 auto 10px';
-    btn.style.display = 'block';
-    btn.className = 'primary';
-    btn.addEventListener('click', async () => {
-      if(deferredInstallPrompt){
-        deferredInstallPrompt.prompt();
-        await deferredInstallPrompt.userChoice;
-        deferredInstallPrompt = null;
-        btn.style.display = 'none';
-      } else {
-        alert('On iPhone: tap the Share icon, then "Add to Home Screen".\nOn Android Chrome: tap the ⋮ menu, then "Install app".');
-      }
-    });
-    document.querySelector('.frame').insertBefore(btn, document.querySelector('.board'));
-  }
+  installBarEl.appendChild(el('button', {class:'ghost', text:'⬇ Install App', onclick: async () => {
+    if(deferredInstallPrompt){
+      deferredInstallPrompt.prompt();
+      await deferredInstallPrompt.userChoice;
+      deferredInstallPrompt = null;
+      installBarEl.innerHTML = '';
+    } else {
+      alert('On iPhone: tap the Share icon, then "Add to Home Screen".\\nOn Android Chrome: tap the ⋮ menu, then "Install app".');
+    }
+  }}));
 }
 showInstallButtonIfNeeded();
 
 if('serviceWorker' in navigator){
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/service-worker.js').catch(() => {});
-  });
+  window.addEventListener('load', () => { navigator.serviceWorker.register('/service-worker.js').catch(() => {}); });
 }
 </script>
 </body>
